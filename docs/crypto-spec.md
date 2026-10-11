@@ -97,6 +97,26 @@ the same bytes. A property test checks this on random inputs.
 `kek_version` is deliberately **not** bound: rewrapping changes it without
 touching the value ciphertext.
 
+## Storage layout
+
+Records live in an OpenBao KV v2 mount, one entry per secret version:
+
+```text
+<mount>/data/<env>/<app>/<KEY>/<N>      field "record": base64 of the hv1 JSON
+```
+
+- The version `N` bound into the associated data is part of the path, so it
+  never changes. A new value is written with `cas=0` on the next free `N`:
+  two concurrent writers cannot take the same number, the loser retries.
+- The KV versions of one entry only move when the record is rewrapped. The
+  previous KV versions are destroyed right after, so a retired wrapped key
+  does not stay readable through the KV history.
+- Destroying a secret version destroys its KV data but keeps its metadata:
+  the number `N` stays visible and is never reused.
+- The KEK is a `chacha20-poly1305` Transit key. Transit ciphertexts have the
+  form `vault:v<k>:<base64>`; the record's `kek_version` must equal `k`, or
+  the wrapper refuses to send it to OpenBao.
+
 ## Operations
 
 **Seal**

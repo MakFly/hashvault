@@ -24,6 +24,12 @@ GITLEAKS    := github.com/zricethezav/gitleaks/v8@v8.30.1
 # support Go 1.27.
 LINT_TOOLCHAIN ?= go1.26.9
 
+# OpenBao for integration tests: pinned release, checksum checked against the
+# value below (from the release's checksums.txt), never "latest".
+OPENBAO_VERSION := 2.7.1
+OPENBAO_SHA256  := 0e2f1ce10d124e03112b50dd2fbec6b78003783253bc3a91587938f39d1e2243
+OPENBAO_BIN     := .tools/bao-$(OPENBAO_VERSION)
+
 FUZZTIME ?= 30s
 FUZZ_TARGETS := \
 	./internal/envelope:FuzzParseRecord \
@@ -44,6 +50,17 @@ deps: ## Download and verify module dependencies
 
 tidy: ## Tidy go.mod and go.sum (fails in CI if they change)
 	@$(GO) mod tidy
+
+openbao: $(OPENBAO_BIN) ## Download the pinned OpenBao binary (checksum verified) for integration tests
+
+$(OPENBAO_BIN):
+	@mkdir -p .tools/dl
+	@curl -fsSL -o .tools/dl/openbao.tar.gz \
+		https://github.com/openbao/openbao/releases/download/v$(OPENBAO_VERSION)/openbao_$(OPENBAO_VERSION)_linux_amd64.tar.gz
+	@echo "$(OPENBAO_SHA256)  .tools/dl/openbao.tar.gz" | sha256sum -c --quiet - \
+		|| { printf '$(C_ERR)[make] OpenBao checksum mismatch$(C_RESET)\n'; rm -f .tools/dl/openbao.tar.gz; exit 1; }
+	@tar -xzf .tools/dl/openbao.tar.gz -C .tools/dl bao && mv .tools/dl/bao $@ && chmod 0755 $@
+	@printf '$(C_OK)[make] OpenBao $(OPENBAO_VERSION) ready in $@$(C_RESET)\n'
 
 # ─── Check ───────────────────────────────────────────────────────────────────
 fmt: ## Rewrite Go sources with gofmt
@@ -73,11 +90,11 @@ secrets-scan: ## Scan the working tree for committed secrets (gitleaks)
 lint: fmt-check vet staticcheck gosec ## All static checks
 
 # ─── Test ────────────────────────────────────────────────────────────────────
-test: ## Unit and property tests, with the race detector
+test: ## Unit, property and integration tests (integration skipped without `make openbao`)
 	@$(GO) test -race -shuffle=on -count=1 ./...
 
-cover: ## Tests with coverage, then enforce the per-package thresholds
-	@$(GO) test -race -count=1 -covermode=atomic -coverprofile=coverage.out ./...
+cover: openbao ## All tests, integration required, then enforce the per-package thresholds
+	@HASHVAULT_REQUIRE_INTEGRATION=1 $(GO) test -race -count=1 -covermode=atomic -coverprofile=coverage.out ./...
 	@./scripts/coverage-check.sh coverage.out
 
 fuzz: ## Run every fuzz target for FUZZTIME each (default 30s)
@@ -96,4 +113,4 @@ clean: ## Remove generated reports
 	@rm -f coverage.out
 	@printf '$(C_WARN)[make] reports removed$(C_RESET)\n'
 
-.PHONY: help deps tidy fmt fmt-check vet staticcheck gosec vuln secrets-scan lint test cover fuzz ci clean
+.PHONY: help deps tidy openbao fmt fmt-check vet staticcheck gosec vuln secrets-scan lint test cover fuzz ci clean
