@@ -1,0 +1,10 @@
+coverage.out
+*.test
+*.prof
+/dist/
+/bin/
+.env
+.env.*
+!.env.example
+*.age
+*.enc

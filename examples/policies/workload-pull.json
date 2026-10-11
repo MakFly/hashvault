@@ -1,0 +1,18 @@
+{
+  "Version": "hv-1",
+  "Statement": [
+    {
+      "Sid": "WorkloadPullOwnSecrets",
+      "Effect": "Allow",
+      "Action": "secret:Read",
+      "Resource": "hv:prod:secret/acme-api/*",
+      "Condition": {
+        "StringEquals": {
+          "hv:TargetKind": "k8s",
+          "hv:Namespace": "acme",
+          "hv:PublishMode": "pull"
+        }
+      }
+    }
+  ]
+}

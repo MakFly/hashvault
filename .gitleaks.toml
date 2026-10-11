@@ -1,0 +1,9 @@
+# gitleaks configuration: the default rules, plus a narrow allowlist for
+# algorithm names that the generic rule mistakes for key values in prose.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Algorithm names in documentation are not secrets"
+regexTarget = "secret"
+regexes = ['''^(?i)x?chacha20-poly1305$''']

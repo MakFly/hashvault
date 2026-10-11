@@ -1,0 +1,36 @@
+name: Bug report
+description: Something does not behave as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security issue?** Do not open a public issue. Follow SECURITY.md instead.
+        Never paste a secret value, a token or an unseal key here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Commands and configuration, with every secret value redacted.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: hashvault version
+      placeholder: "hashvault version"
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Target
+      options: [Docker Swarm, Docker Compose / docker run, systemd, Kubernetes, Not target related]
+    validations:
+      required: true

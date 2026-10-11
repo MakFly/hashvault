@@ -1,0 +1,20 @@
+{
+  "Version": "hv-1",
+  "Statement": [
+    {
+      "Sid": "CiPreprodOnly",
+      "Effect": "Allow",
+      "Action": "secret:Publish",
+      "Resource": ["hv:preprod:secret/*", "hv:preprod:target/*"],
+      "Condition": {
+        "StringLike": {"hv:PrincipalTag/ref": "refs/heads/main"}
+      }
+    },
+    {
+      "Sid": "CiNoProd",
+      "Effect": "Deny",
+      "Action": "*",
+      "Resource": "hv:prod:*"
+    }
+  ]
+}

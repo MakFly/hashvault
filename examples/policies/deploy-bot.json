@@ -1,0 +1,21 @@
+{
+  "Version": "hv-1",
+  "Statement": [
+    {
+      "Sid": "DeployBotPublishOnly",
+      "Effect": "Allow",
+      "Action": "secret:Publish",
+      "Resource": ["hv:prod:secret/*", "hv:prod:target/swarm-main"],
+      "Condition": {
+        "StringEquals": {"hv:PlanAction": "secrets-hashvault", "hv:TargetKind": "swarm"},
+        "Bool": {"hv:Approved": true}
+      }
+    },
+    {
+      "Sid": "DeployBotNeverReads",
+      "Effect": "Deny",
+      "Action": ["secret:Read", "secret:Write", "policy:*"],
+      "Resource": "*"
+    }
+  ]
+}
