@@ -6,6 +6,14 @@ All notable changes are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `internal/iam`: the glob matcher consumed a pattern `*` as a literal when
+  the input held a `*` at the same position, so `a*` did not match `a*b`. A
+  Deny statement could fail to apply to a context value containing `*`. Found
+  by the differential fuzz target on its first CI run. Request resources may
+  no longer contain `*` or `?`.
+
 ### Added
 
 - `internal/envelope`: format `hv1`, one data encryption key per secret version,

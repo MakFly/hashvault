@@ -11,12 +11,15 @@ func matchGlob(pattern, s string) bool {
 	star, mark := -1, 0
 	for si < len(str) {
 		switch {
-		case pi < len(p) && (p[pi] == '?' || p[pi] == str[si]):
-			pi++
-			si++
+		// The wildcard is tested first: otherwise a '*' in the pattern facing
+		// a '*' in the input would be consumed as a literal, and the pattern
+		// "a*" would not match "a*b".
 		case pi < len(p) && p[pi] == '*':
 			star, mark = pi, si
 			pi++
+		case pi < len(p) && (p[pi] == '?' || p[pi] == str[si]):
+			pi++
+			si++
 		case star >= 0:
 			mark++
 			pi, si = star+1, mark

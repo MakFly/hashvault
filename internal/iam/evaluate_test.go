@@ -32,11 +32,13 @@ func identity(p ...NamedPolicy) PolicySet { return PolicySet{Identity: p} }
 func TestEvaluateRefusesUnauthenticatedUnknownAndInvalidRequests(t *testing.T) {
 	allowAll := NamedPolicy{Name: "all", Policy: mustParse(t, `{"Version":"hv-1","Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}`)}
 	cases := map[string]Request{
-		"unauthenticated":  {Action: "secret:Read", Resource: "hv:prod:secret/a"},
-		"unknown action":   {Principal: "human/a", Action: "secret:Steal", Resource: "hv:prod:secret/a"},
-		"glob action":      {Principal: "human/a", Action: "secret:*", Resource: "hv:prod:secret/a"},
-		"foreign resource": {Principal: "human/a", Action: "secret:Read", Resource: "arn:aws:s3:::b"},
-		"space resource":   {Principal: "human/a", Action: "secret:Read", Resource: "hv:prod secret"},
+		"unauthenticated":   {Action: "secret:Read", Resource: "hv:prod:secret/a"},
+		"unknown action":    {Principal: "human/a", Action: "secret:Steal", Resource: "hv:prod:secret/a"},
+		"glob action":       {Principal: "human/a", Action: "secret:*", Resource: "hv:prod:secret/a"},
+		"foreign resource":  {Principal: "human/a", Action: "secret:Read", Resource: "arn:aws:s3:::b"},
+		"space resource":    {Principal: "human/a", Action: "secret:Read", Resource: "hv:prod secret"},
+		"wildcard resource": {Principal: "human/a", Action: "secret:Read", Resource: "hv:prod:secret/*"},
+		"question resource": {Principal: "human/a", Action: "secret:Read", Resource: "hv:prod:secret/?"},
 	}
 	for name, req := range cases {
 		t.Run(name, func(t *testing.T) {

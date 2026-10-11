@@ -26,6 +26,11 @@ func TestMatchGlob(t *testing.T) {
 		{"**", "abc", true},
 		{"a*", "A", false},
 		{"é?", "éà", true},
+		// Found by FuzzMatchGlob in CI: a pattern '*' facing an input '*'.
+		{"0*", "0*0", true},
+		{"a*", "a*", true},
+		{"*b", "*ab", true},
+		{"a?c", "a*c", true},
 	}
 	for _, c := range cases {
 		if got := matchGlob(c.pattern, c.s); got != c.want {

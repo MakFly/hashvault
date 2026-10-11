@@ -108,7 +108,10 @@ func evaluate(set PolicySet, req Request, trace bool) Result {
 	if !slices.Contains(Actions, req.Action) {
 		return Result{Decision: ImplicitDeny, Reason: fmt.Sprintf("unknown action %q", req.Action)}
 	}
-	if err := validateResourceText(req.Resource); err != nil || !strings.HasPrefix(req.Resource, "hv:") {
+	// A request names one concrete resource: wildcards there would let a
+	// caller ask about a pattern instead of an object.
+	if err := validateResourceText(req.Resource); err != nil || !strings.HasPrefix(req.Resource, "hv:") ||
+		strings.ContainsAny(req.Resource, "*?") {
 		return Result{Decision: ImplicitDeny, Reason: fmt.Sprintf("invalid resource %q", req.Resource)}
 	}
 	if dup := duplicateName(set.Identity, set.Boundary); dup != "" {
