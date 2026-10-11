@@ -4,7 +4,7 @@
 #   scripts/coverage-check.sh coverage.out
 #
 # Security-critical packages need 90%, the rest 80%. Test helper packages
-# (envelopetest) are exercised through the packages that use them and are
+# (envelopetest, baotest) are exercised through the packages that use them and are
 # not measured on their own.
 set -euo pipefail
 
@@ -13,8 +13,8 @@ module=$(go list -m)
 
 threshold() {
   case "$1" in
-    internal/envelope | internal/iam | internal/audit | internal/authn | internal/approvals) echo 90 ;;
-    */envelopetest) echo 0 ;;
+    internal/envelope | internal/iam | internal/audit | internal/authn | internal/approvals | internal/openbao | internal/secrets) echo 90 ;;
+    */envelopetest | */baotest) echo 0 ;;
     *) echo 80 ;;
   esac
 }

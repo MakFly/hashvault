@@ -16,6 +16,15 @@ All notable changes are recorded here. The format follows
 
 ### Added
 
+- `internal/openbao`: minimal standard-library client for OpenBao (KV v2 with
+  check-and-set, Transit data keys, decrypt, rewrap, rotation, seal status),
+  over a unix socket or loopback TCP, with bounded responses and no proxy.
+  Transit-backed key wrapper for the hv1 envelope.
+- `internal/secrets`: versioned secrets, one KV entry per version, safe
+  concurrent writers, crypto-shredding that never reuses a version number,
+  rewrap of every live version after a KEK rotation.
+- Integration tests against a real OpenBao 2.7.1 dev server
+  (`make openbao` downloads the pinned, checksum-verified binary).
 - `internal/envelope`: format `hv1`, one data encryption key per secret version,
   XChaCha20-Poly1305 with associated data that binds the resource, the
   environment, the version and the wrapping key name; rewrap after rotation;

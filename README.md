@@ -159,8 +159,9 @@ Requires Go 1.26 or later (the module pins its toolchain).
 
 ```sh
 make help      # every target, by section
-make test      # unit and property tests, race detector
-make cover     # coverage with per-package thresholds
+make openbao   # pinned OpenBao binary for integration tests (checksum verified)
+make test      # unit, property and integration tests, race detector
+make cover     # every test, integration required, per-package thresholds
 make lint      # gofmt, go vet, staticcheck, gosec
 make fuzz      # every fuzz target, FUZZTIME=30s each
 make ci        # everything CI runs
