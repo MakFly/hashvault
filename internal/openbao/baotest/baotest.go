@@ -236,7 +236,7 @@ cluster_addr = "http://%s"
 		})
 	}
 	t.Cleanup(stop)
-	client, err := openbao.New(openbao.Config{Address: "http://" + addr, Timeout: 10 * time.Second})
+	client, err := openbao.New(openbao.Config{Address: "http://" + addr})
 	if err != nil {
 		t.Fatal(err)
 	}
