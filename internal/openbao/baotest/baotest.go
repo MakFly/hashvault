@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -28,9 +29,10 @@ const Version = "2.7.1"
 
 // Mounts created on every server.
 const (
-	KVMount      = "hv"
-	TransitMount = "transit"
-	KEK          = "hv-kek-test"
+	KVMount          = "hv"
+	TransitMount     = "transit"
+	KEK              = "hv-kek-test"
+	readinessTimeout = 15 * time.Second
 )
 
 // Server is a running dev server.
@@ -69,6 +71,52 @@ func freePort(t testing.TB) int {
 	}
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port
+}
+
+func waitForKV2(client *openbao.Client, mount, probe string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), readinessTimeout)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		entry, err := client.KVGet(ctx, mount, probe, 0)
+		if err == nil {
+			if entry.Version == 0 || entry.Data["ready"] != "true" {
+				return fmt.Errorf("KV v2 readiness probe returned unexpected data")
+			}
+			if err := client.KVDestroy(ctx, mount, probe, []int{entry.Version}); err != nil {
+				return fmt.Errorf("remove KV v2 readiness probe: %w", err)
+			}
+			return nil
+		}
+
+		if errors.Is(err, openbao.ErrNotFound) {
+			version, putErr := client.KVPut(ctx, mount, probe, map[string]string{"ready": "true"}, 0)
+			switch {
+			case putErr == nil && version == 0:
+				return fmt.Errorf("KV v2 readiness probe returned no version")
+			case putErr == nil, errors.Is(putErr, openbao.ErrCASMismatch):
+				// A successful write, or a prior write whose response was lost,
+				// should be readable on the next iteration.
+				continue
+			default:
+				lastErr = putErr
+			}
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastErr == nil {
+				lastErr = ctx.Err()
+			}
+			return fmt.Errorf("KV v2 mount %q did not become ready within %s: %w", mount, readinessTimeout, lastErr)
+		case <-ticker.C:
+		}
+	}
 }
 
 // Start runs a dev server for the duration of the test, with a KV v2 mount,
@@ -131,6 +179,9 @@ func Start(t testing.TB) *Server {
 		}
 	}
 	must(client.Mount(bg, KVMount, "kv", map[string]string{"version": "2"}))
+	if err := waitForKV2(client, KVMount, "readiness-"+hex.EncodeToString(raw)); err != nil {
+		t.Fatalf("OpenBao KV v2 mount did not become ready: %v", err)
+	}
 	must(client.Mount(bg, TransitMount, "transit", nil))
 	must(client.TransitCreateKey(bg, TransitMount, KEK, "chacha20-poly1305"))
 	return &Server{Address: "http://" + addr, Token: token, Client: client, stop: stop}
