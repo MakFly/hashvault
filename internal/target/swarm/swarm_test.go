@@ -80,8 +80,25 @@ func service(t *testing.T, name, guardFile string, mounts []map[string]any) {
 		"UpdateConfig":   map[string]any{"Parallelism": 1, "FailureAction": "rollback", "Monitor": int64(3 * time.Second), "Order": "stop-first"},
 		"RollbackConfig": map[string]any{"Parallelism": 1, "Monitor": int64(2 * time.Second)},
 	}
-	if _, err := daemon.Client.ServiceCreate(ctx, spec); err != nil {
+	id, err := daemon.Client.ServiceCreate(ctx, spec)
+	if err != nil {
 		t.Fatal(err)
+	}
+	// Publish only once the first task runs: an update racing the initial
+	// deployment is not what these tests are about.
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		tasks, err := daemon.Client.TaskList(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tasks) > 0 && tasks[0].Status.State == "running" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("service %s did not start: %+v", name, tasks)
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 }
 
