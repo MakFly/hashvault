@@ -28,6 +28,7 @@ machines. There are no long-lived API keys for humans.
 | `hv:<env>:secret/<app>/<KEY>` | A secret. Secrets are target-agnostic: one value can be published to Swarm and Kubernetes. |
 | `hv:<env>:target/<name>` | A registered publication target |
 | `hv:policy/<name>` | A policy document |
+| `hv:principal/<type>/<name>` | A principal (its key, tags and attached policies) |
 | `hv:sys:unseal`, `hv:sys:seal` | Seal state |
 | `hv:audit` | The audit log |
 
@@ -40,6 +41,7 @@ pattern must cover at least one catalog action.
 approval:Grant
 audit:Read
 policy:Attach  policy:Get  policy:Put  policy:Simulate
+principal:Create  principal:Disable  principal:Read
 secret:Delete  secret:List  secret:Publish  secret:Read  secret:Rotate  secret:Write
 sys:Seal  sys:Unseal
 target:List  target:Register  target:Remove
