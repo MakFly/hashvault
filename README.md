@@ -97,7 +97,7 @@ vault blocks publications, not production.
 |---|---|---|---|
 | `docker` | `docker run` or Docker Compose, no Swarm | `systemd-creds` store, materialised to tmpfs at boot, bind-mounted to `/run/secrets` | yes, across reboots |
 | `ssh` | Classic deployment over SSH (rsync, git pull) run by systemd, PM2, supervisor or PHP-FPM | Encrypted store on the host, then a `.env` on tmpfs, `LoadCredentialEncrypted=`, or `hashvault-agent exec` | yes, across reboots |
-| `swarm` | Docker Swarm | Secret objects named by value digest, rolled by the deployer | yes |
+| `swarm` | Docker Swarm | Immutable secret objects named `hv_<app>_<target>_v<N>`; hashvault updates consuming service references | yes |
 | `k3s` | k3s cluster | Immutable `Secret` objects named by digest, rollout on change; refused unless `k3s secrets-encrypt` is enabled | yes (push mode) |
 | `k8s` | Any other Kubernetes (vanilla, EKS, GKE, AKS...) | Same, refused without an `EncryptionConfiguration` (KMS v2 preferred) | yes (push mode) |
 

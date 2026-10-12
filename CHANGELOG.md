@@ -6,6 +6,11 @@ All notable changes are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- README: document Swarm secret names as versioned app and target names, with
+  hashvault updating consuming service references.
+
 ### Fixed
 
 - `internal/iam`: the glob matcher consumed a pattern `*` as a literal when
