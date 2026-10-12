@@ -16,6 +16,14 @@ All notable changes are recorded here. The format follows
 
 ### Added
 
+- `docker` and `ssh` targets, vault side (`internal/target/host`): batches
+  addressed to one agent, delivered by local `sudo -n hashvault-agent
+  receive` or by OpenSSH with a pinned host key and a key restricted to that
+  command; compose services (docker) or reload commands (ssh) as consumers; a
+  rolled back receipt surfaces as a verify error; a downgrade needs the
+  signed rollback flag (`Desired.Rollback`). Tested end to end against the
+  real agent in process, and against a real OpenSSH server in a throwaway
+  container.
 - Host agent for the `docker` and `ssh` targets (`cmd/hashvault-agent`,
   `docs/host-agent.md`): receives a batch signed by the vault (Ed25519) and
   encrypted to that agent only (age hybrid, ML-KEM-768 + X25519), checks

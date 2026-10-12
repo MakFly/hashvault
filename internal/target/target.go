@@ -52,6 +52,9 @@ type Desired struct {
 	App   string
 	Env   string
 	Items []Item
+	// Rollback publishes versions older than the ones in place. Host agents
+	// refuse a downgrade without it; swarm needs no flag.
+	Rollback bool
 }
 
 // Validate checks the items against the manifest rules.

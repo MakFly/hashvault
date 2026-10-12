@@ -126,6 +126,27 @@ hashvault-agent exec --app acme-api --service web -- /usr/bin/node server.js
 The agent decrypts the env items of that service, adds them to the
 environment and replaces itself with the command (no shell, absolute path).
 
+## Vault side
+
+`internal/target/host` builds the batch and delivers it. One adapter serves
+both kinds; only the consumers differ:
+
+| | `docker` | `ssh` |
+|---|---|---|
+| Consumers | every compose service named in the manifest items | the reload commands configured for the app |
+| Usual transport | `LocalSudo`: `sudo -n /usr/local/bin/hashvault-agent receive` | `SSH`: OpenSSH client to the restricted key |
+
+The SSH transport runs the system `ssh` with `-F /dev/null` (no user or
+system configuration can override it), `BatchMode`, `IdentitiesOnly`, no agent,
+no forwarding, and `StrictHostKeyChecking=yes` against a pinned
+`known_hosts` file: there is no trust on first use. It sends no remote
+command; the server's `command=` decides what runs.
+
+A plan for a host target lists what will be pushed and restarted: the agent
+exposes nothing but `receive`, so its state is not read from the vault.
+Going back after a successful publication is a new publication of the
+previous versions with the rollback flag, signed in the batch.
+
 ## Rollback
 
 Each key keeps its previous sealed value as `<file>.prev`. If materialising or
