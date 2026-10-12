@@ -1,0 +1,5 @@
+# ~hashvault/.ssh/authorized_keys on an SSH-deployed server.
+#
+# The key can only run the receive command, whatever the client asks for:
+# no shell, no port forwarding, no agent forwarding, no X11, no PTY.
+restrict,command="sudo -n /usr/local/bin/hashvault-agent receive" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleOnlyReplaceWithTheVaultPushKey hashvault-push

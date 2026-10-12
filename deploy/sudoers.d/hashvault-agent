@@ -1,0 +1,7 @@
+# /etc/sudoers.d/hashvault-agent (mode 0440, check with: visudo -cf <file>)
+#
+# The vault (local Docker host) or the SSH push user may run exactly one
+# command as root: receive a batch on stdin. No argument, no shell, no
+# environment passed through.
+Defaults!/usr/local/bin/hashvault-agent env_reset, !setenv
+hashvault ALL=(root) NOPASSWD: /usr/local/bin/hashvault-agent receive

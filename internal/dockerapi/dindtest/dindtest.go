@@ -19,12 +19,16 @@ import (
 	"github.com/MakFly/hashvault/internal/dockerapi"
 )
 
+// Mirror serves the Docker official images from AWS ECR Public, which does
+// not apply Docker Hub's anonymous pull quota (CI runners share addresses).
+const Mirror = "public.ecr.aws/docker/library/"
+
 // Image is the dind image, pinned by major version.
-const Image = "docker:29-dind"
+const Image = Mirror + "docker:29-dind"
 
 // TestImage is pulled inside the daemon for test services.
 const (
-	TestImage    = "busybox"
+	TestImage    = Mirror + "busybox"
 	TestImageTag = "1.37"
 )
 

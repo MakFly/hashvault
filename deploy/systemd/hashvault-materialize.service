@@ -1,0 +1,28 @@
+# Rebuilds the tmpfs copies (/run/hashvault) from the encrypted credential
+# store at boot, before Docker starts the containers that mount them and
+# before the services that read a .env. It needs no network and no vault.
+[Unit]
+Description=hashvault: materialise secrets from the credential store
+DefaultDependencies=no
+After=local-fs.target systemd-tmpfiles-setup.service
+Before=docker.service php-fpm.service nginx.service multi-user.target
+ConditionPathExists=/etc/hashvault-agent/config.json
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/hashvault-agent materialize
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/hashvault /var/lib/hashvault-agent
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+LimitCORE=0
+
+[Install]
+WantedBy=multi-user.target docker.service
