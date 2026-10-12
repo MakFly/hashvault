@@ -16,6 +16,11 @@ All notable changes are recorded here. The format follows
 
 ### Added
 
+- `internal/audit`: tamper-evident audit log. JSON lines chained by SHA-256,
+  appended with fsync, verified on open (a broken chain refuses to open);
+  Ed25519-signed checkpoints, and verification against anchors kept off the
+  host, which exposes a fully rewritten history or a truncation below an
+  anchor. Detail keys that look like secret values are refused.
 - `docker` and `ssh` targets, vault side (`internal/target/host`): batches
   addressed to one agent, delivered by local `sudo -n hashvault-agent
   receive` or by OpenSSH with a pinned host key and a key restricted to that

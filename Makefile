@@ -34,7 +34,9 @@ FUZZTIME ?= 30s
 FUZZ_TARGETS := \
 	./internal/envelope:FuzzParseRecord \
 	./internal/iam:FuzzParse \
-	./internal/iam:FuzzMatchGlob
+	./internal/iam:FuzzMatchGlob \
+	./internal/batch:FuzzOpen \
+	./internal/audit:FuzzVerifyChain
 
 # ─── Help ────────────────────────────────────────────────────────────────────
 help: ## Show the targets, grouped by section
