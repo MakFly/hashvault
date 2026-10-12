@@ -19,8 +19,8 @@ export function Scope() {
   const [query] = useSearchParams()
   return <Form method="get" className="scope-form surface">
     {query.get("target") && <input type="hidden" name="target" value={query.get("target") || ""} />}
-    <div><Label htmlFor="scope-env">Environment</Label><Input id="scope-env" name="env" required pattern="[a-z][a-z0-9-]{0,31}" defaultValue={query.get("env") || "prod"} /></div>
-    <div><Label htmlFor="scope-app">Application</Label><Input id="scope-app" name="app" required pattern="[a-z0-9][a-z0-9-]{0,62}" defaultValue={query.get("app") || ""} placeholder="Application name" /></div>
+    <div><Label htmlFor="scope-env">Environment</Label><Input id="scope-env" name="env" required pattern="[a-z][a-z0-9\-]{0,31}" defaultValue={query.get("env") || "prod"} /></div>
+    <div><Label htmlFor="scope-app">Application</Label><Input id="scope-app" name="app" required pattern="[a-z0-9][a-z0-9\-]{0,62}" defaultValue={query.get("app") || ""} placeholder="Application name" /></div>
     <Button variant="secondary" type="submit">Open application</Button>
   </Form>
 }
