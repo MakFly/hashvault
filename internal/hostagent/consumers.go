@@ -26,7 +26,11 @@ type HostConsumers struct {
 	// ReadyTimeout bounds the wait for a restarted container to run (and be
 	// healthy, when it has a healthcheck), and each reload command.
 	ReadyTimeout time.Duration
-	Poll         time.Duration
+	// MinUptime is how long a restarted container without a healthcheck must
+	// keep running, unrestarted, to count as ready: a process that dies a
+	// second after start must not pass. Default 10 seconds.
+	MinUptime time.Duration
+	Poll      time.Duration
 }
 
 func (h HostConsumers) defaults() HostConsumers {
@@ -38,6 +42,9 @@ func (h HostConsumers) defaults() HostConsumers {
 	}
 	if h.Poll == 0 {
 		h.Poll = time.Second
+	}
+	if h.MinUptime == 0 {
+		h.MinUptime = 10 * time.Second
 	}
 	return h
 }
@@ -90,10 +97,12 @@ func (h HostConsumers) restartService(ctx context.Context, project, svc string) 
 	return nil
 }
 
-// waitReady waits for a container started after since to be running and, if
-// it has a healthcheck, healthy.
+// waitReady waits for a container started after since to be ready: healthy
+// when it has a healthcheck, otherwise running without a restart for
+// MinUptime.
 func (h HostConsumers) waitReady(ctx context.Context, id string, since time.Time) error {
 	deadline := time.Now().Add(h.ReadyTimeout)
+	var started time.Time
 	for {
 		st, err := h.Docker.ContainerInspect(ctx, id)
 		if err != nil {
@@ -101,12 +110,25 @@ func (h HostConsumers) waitReady(ctx context.Context, id string, since time.Time
 		}
 		restarted := st.StartedAt.After(since)
 		switch {
-		case restarted && st.Running && !st.Restarting && (st.Health == nil || st.Health.Status == "healthy"):
-			return nil
-		case restarted && st.Health != nil && st.Health.Status == "unhealthy":
+		case !restarted:
+			// The restart has not taken effect yet.
+		case st.Health != nil && st.Health.Status == "unhealthy":
 			return errors.New("container is unhealthy after the restart")
-		case restarted && !st.Running && !st.Restarting:
+		case !st.Running && !st.Restarting:
 			return fmt.Errorf("container exited with code %d after the restart", st.ExitCode)
+		case st.Restarting || (!started.IsZero() && !st.StartedAt.Equal(started)):
+			return errors.New("container restarted again after the restart")
+		case st.Health != nil:
+			if st.Health.Status == "healthy" {
+				return nil
+			}
+		default:
+			if started.IsZero() {
+				started = st.StartedAt
+			}
+			if time.Since(started) >= h.MinUptime {
+				return nil
+			}
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("container not ready after %s", h.ReadyTimeout)

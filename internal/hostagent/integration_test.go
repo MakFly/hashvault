@@ -155,10 +155,11 @@ func TestDockerConsumersRestartComposeContainers(t *testing.T) {
 		return id
 	}
 	create("acme-web-1", "web", "sleep", "3600")
-	// Runs the first time, exits 3 on every restart.
-	create("acme-broken-1", "broken", "sh", "-c", "test -f /tmp/once && exit 3; touch /tmp/once; exec sleep 3600")
+	// Runs the first time; on every restart it lives one second, then exits 3:
+	// it must not be taken for ready while it is still up.
+	create("acme-broken-1", "broken", "sh", "-c", "test -f /tmp/once && { sleep 1; exit 3; }; touch /tmp/once; exec sleep 3600")
 
-	h := HostConsumers{Docker: d.Client, StopTimeout: time.Second, ReadyTimeout: 30 * time.Second, Poll: 200 * time.Millisecond}
+	h := HostConsumers{Docker: d.Client, StopTimeout: time.Second, ReadyTimeout: 30 * time.Second, MinUptime: 3 * time.Second, Poll: 200 * time.Millisecond}
 	b := func(services ...string) batch.Batch {
 		return batch.Batch{App: "acme-api", Kind: target.Docker, Consumers: batch.Consumers{Docker: services}}
 	}
