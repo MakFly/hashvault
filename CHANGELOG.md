@@ -16,6 +16,19 @@ All notable changes are recorded here. The format follows
 
 ### Added
 
+- Swarm target (`internal/target/swarm`): one immutable swarm secret per
+  version, named `hv_<app>_<target>_v<N>` (from the version, never from a hash
+  of the value), labelled with its hashvault coordinates. Plan, apply, verify
+  (a paused or rolled back update fails), rollback, inventory and garbage
+  collection after a retention window. A hand-made secret mounted on a managed
+  file name is replaced, other mounts are kept: the migration path from
+  `*_v1` secrets. Objects whose labels disagree with their name are refused.
+- App manifest `hashvault.json` (`hv-manifest-1`), the env contract: exposure,
+  file name, consuming services, uid, gid and mode, with unknown fields,
+  write or execute modes and two keys on one mount refused.
+- `internal/dockerapi`: minimal standard-library Docker Engine API client.
+- Integration tests against a throwaway Docker-in-Docker daemon; the host
+  daemon is never used as a test target.
 - `internal/openbao`: minimal standard-library client for OpenBao (KV v2 with
   check-and-set, Transit data keys, decrypt, rewrap, rotation, seal status),
   over a unix socket or loopback TCP, with bounded responses and no proxy.
