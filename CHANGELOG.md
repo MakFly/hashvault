@@ -16,6 +16,17 @@ All notable changes are recorded here. The format follows
 
 ### Added
 
+- Host agent for the `docker` and `ssh` targets (`cmd/hashvault-agent`,
+  `docs/host-agent.md`): receives a batch signed by the vault (Ed25519) and
+  encrypted to that agent only (age hybrid, ML-KEM-768 + X25519), checks
+  addressee, freshness and replay, seals each value with `systemd-creds`,
+  materialises it on tmpfs per service (files and a literal `.env`), restarts
+  compose services or runs reload commands, and restores the previous values
+  on failure. `materialize` rebuilds tmpfs at boot from the store alone;
+  `exec` runs a command with the env items. Deployment files: boot unit,
+  sudoers rule, restricted `authorized_keys` line.
+- Test images come from the AWS ECR Public mirror of the Docker official
+  images, which avoids Docker Hub's anonymous pull quota.
 - Swarm target (`internal/target/swarm`): one immutable swarm secret per
   version, named `hv_<app>_<target>_v<N>` (from the version, never from a hash
   of the value), labelled with its hashvault coordinates. Plan, apply, verify

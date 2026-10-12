@@ -384,7 +384,7 @@ func (a *Adapter) Verify(ctx context.Context, r target.Receipt) error {
 			switch state {
 			case "completed":
 			case "paused", "rollback_started", "rollback_paused", "rollback_completed":
-				return fmt.Errorf("%w: service %s: update %s: %s", target.ErrVerify, name, state, msg)
+				return fmt.Errorf("%w: service %s: update %s: %s%s", target.ErrVerify, name, state, msg, a.taskError(ctx, service.ID))
 			default:
 				if time.Now().After(deadline) {
 					return fmt.Errorf("%w: service %s: still %q after %s", target.ErrVerify, name, state, a.cfg.VerifyTimeout)
@@ -400,6 +400,21 @@ func (a *Adapter) Verify(ctx context.Context, r target.Receipt) error {
 		}
 	}
 	return nil
+}
+
+// taskError returns the most recent task failure of a service, to explain a
+// failed update. Task errors are runtime messages, never secret values.
+func (a *Adapter) taskError(ctx context.Context, serviceID string) string {
+	tasks, err := a.docker.TaskList(ctx, serviceID)
+	if err != nil {
+		return ""
+	}
+	for _, t := range tasks {
+		if t.Status.Err != "" {
+			return " (task: " + t.Status.Err + ")"
+		}
+	}
+	return ""
 }
 
 // Rollback implements target.Target: it restores each touched service's

@@ -308,3 +308,58 @@ func (c *Client) ImagePull(ctx context.Context, image, tag string) error {
 	}
 	return nil
 }
+
+// Container is the subset of a container hashvault reads.
+type Container struct {
+	ID     string            `json:"Id"`
+	Labels map[string]string `json:"Labels"`
+}
+
+// ContainerList lists containers (running or not) matching label filters.
+func (c *Client) ContainerList(ctx context.Context, labels ...string) ([]Container, error) {
+	f, _ := json.Marshal(map[string][]string{"label": labels})
+	q := url.Values{"all": []string{"true"}, "filters": []string{string(f)}}
+	var out []Container
+	err := c.do(ctx, http.MethodGet, "/containers/json", q, nil, &out)
+	return out, err
+}
+
+// ContainerRestart restarts a container, waiting up to timeout for it to stop.
+func (c *Client) ContainerRestart(ctx context.Context, id string, timeout time.Duration) error {
+	q := url.Values{"t": []string{strconv.Itoa(int(timeout.Seconds()))}}
+	return c.do(ctx, http.MethodPost, "/containers/"+url.PathEscape(id)+"/restart", q, nil, nil)
+}
+
+// ContainerState is the runtime state of a container.
+type ContainerState struct {
+	Running    bool      `json:"Running"`
+	Restarting bool      `json:"Restarting"`
+	ExitCode   int       `json:"ExitCode"`
+	StartedAt  time.Time `json:"StartedAt"`
+	Health     *struct {
+		Status string `json:"Status"`
+	} `json:"Health"`
+}
+
+// ContainerInspect returns the state of a container.
+func (c *Client) ContainerInspect(ctx context.Context, id string) (ContainerState, error) {
+	var out struct {
+		State ContainerState `json:"State"`
+	}
+	err := c.do(ctx, http.MethodGet, "/containers/"+url.PathEscape(id)+"/json", nil, nil, &out)
+	return out.State, err
+}
+
+// ContainerCreate creates a container from a generic config (tests).
+func (c *Client) ContainerCreate(ctx context.Context, name string, config map[string]any) (string, error) {
+	var out struct {
+		ID string `json:"Id"`
+	}
+	err := c.do(ctx, http.MethodPost, "/containers/create", url.Values{"name": []string{name}}, config, &out)
+	return out.ID, err
+}
+
+// ContainerStart starts a created container (tests).
+func (c *Client) ContainerStart(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodPost, "/containers/"+url.PathEscape(id)+"/start", nil, nil, nil)
+}
