@@ -8,13 +8,26 @@ All notable changes are recorded here. The format follows
 
 ### Changed
 
+- Makefile help and messages are in French. `make dev` starts the Vite UI
+  on loopback port 4322 and a persistent local OpenBao/hashvault vault with an
+  automatically renewed machine session. `make stop` stops only owned
+  development processes and retains local secrets and audit history.
 - README: document Swarm secret names as versioned app and target names, with
   hashvault updating consuming service references.
 
 ### Fixed
 
+- HTML name patterns escape literal hyphens for browsers' Unicode-sets regex
+  mode, preserving the existing accepted environment/application/policy names.
+- Development API/session requests now reach the CLI security bridge instead
+  of receiving Vite's HTML fallback. The client diagnoses non-JSON responses
+  without exposing their content, and the dev launcher manages both processes.
+  Development opens directly on port 4322 with a same-origin browser session;
+  disconnected vaults keep the console visible with secret actions disabled.
 - Integration fixtures wait for an actual KV v2 write/read before tests start,
   avoiding transient failures while OpenBao finishes enabling the mount.
+- Uninitialized Raft integration fixtures use the bounded 30-second client
+  timeout so leader election under parallel test load can complete.
 - `internal/iam`: the glob matcher consumed a pattern `*` as a literal when
   the input held a `*` at the same position, so `a*` did not match `a*b`. A
   Deny statement could fail to apply to a context value containing `*`. Found
@@ -23,6 +36,9 @@ All notable changes are recorded here. The format follows
 
 ### Added
 
+- Scoped frontend request/runtime logging in the browser and development
+  terminal, with structured production output and sensitive-field redaction.
+- Generated Hashvault PNG favicon and browser-tab icon declarations.
 - Deployment preparations for Swarm, Docker and SSH: pinned, immutable
   descriptors, per-generation encrypted host storage and tmpfs copies, boot
   reconstruction without the vault, runtime-native reference rendering, and

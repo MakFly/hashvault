@@ -168,3 +168,117 @@ func TestUIRejectsPublicListenersAndMissingAssets(t *testing.T) {
 		t.Fatal("missing assets accepted")
 	}
 }
+
+func TestUIDevelopmentProxyKeepsHostAndOriginChecks(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("console"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := &client{}
+	origin, _ := url.Parse("http://127.0.0.1:8822")
+	browser := "http://127.0.0.1:4322"
+	h, closeAssets, err := c.uiHandlerForBrowser(dir, origin, browser, "fixture-nonce", "fixture-cookie")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(closeAssets)
+	call := func(host, requestOrigin string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", origin.String()+"/session", strings.NewReader(`{"nonce":"fixture-nonce"}`))
+		r.Host = host
+		r.Header.Set("Origin", requestOrigin)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	for _, requestOrigin := range []string{"https://attacker.invalid", origin.String(), "http://127.0.0.1:4323", ""} {
+		if w := call(origin.Host, requestOrigin); w.Code != 403 {
+			t.Fatal("unregistered browser origin accepted", requestOrigin, w.Code)
+		}
+	}
+	if w := call("attacker.invalid:8822", browser); w.Code != 403 {
+		t.Fatal("proxy weakened Host validation", w.Code)
+	}
+	if w := call(origin.Host, browser); w.Code != 204 {
+		t.Fatal("development handshake failed", w.Code)
+	}
+	if w := call(origin.Host, browser); w.Code != 403 {
+		t.Fatal("development nonce reused", w.Code)
+	}
+	for _, raw := range []string{"https://127.0.0.1:4322", "http://localhost:4322", "http://0.0.0.0:4322", "http://127.0.0.1:0", "http://127.0.0.1:4322/", "http://127.0.0.1:4322?x=y", "http://127.0.0.1:4322#launch=fixture", "http://user@127.0.0.1:4322"} {
+		if validUIBrowserOrigin(raw, "127.0.0.1") {
+			t.Fatal("invalid development origin accepted", raw)
+		}
+	}
+	if !validUIBrowserOrigin(browser, "127.0.0.1") {
+		t.Fatal("numeric loopback origin rejected")
+	}
+}
+
+func TestUIDevelopmentSessionOpensRootWithoutNonceAndKeepsReleaseLocked(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!doctype html>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	socket := filepath.Join(dir, "vault.sock")
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vault := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/sys/status" || r.Header.Get("Authorization") != "" {
+			t.Error("development status changed authentication or routing")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"vault":"fixture","version":"test","sealed":true}`)
+	})}
+	go func() { _ = vault.Serve(l) }()
+	t.Cleanup(func() { _ = vault.Close() })
+	c := &client{io: IO{Getenv: func(key string) string {
+		if key == "HASHVAULT_SOCKET" {
+			return socket
+		}
+		return ""
+	}}}
+	origin, _ := url.Parse("http://127.0.0.1:8822")
+	browser := "http://127.0.0.1:4322"
+	for _, development := range []bool{false, true} {
+		h, closeAssets, err := c.uiHandlerWithSession(dir, origin, browser, "fixture-nonce", "fixture-cookie", development)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(closeAssets)
+		session := func(requestOrigin string) *httptest.ResponseRecorder {
+			r := httptest.NewRequest("POST", origin.String()+"/session", strings.NewReader(`{}`))
+			r.Header.Set("Origin", requestOrigin)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			return w
+		}
+		if w := session("https://attacker.invalid"); w.Code != 403 {
+			t.Fatal("automatic session accepted a foreign origin", w.Code)
+		}
+		w := session(browser)
+		if !development {
+			if w.Code != 403 {
+				t.Fatal("release mode accepted an empty nonce", w.Code)
+			}
+			continue
+		}
+		if w.Code != 204 || len(w.Result().Cookies()) != 1 || !w.Result().Cookies()[0].HttpOnly {
+			t.Fatal("development session failed", w.Code)
+		}
+		request := httptest.NewRequest("GET", origin.String()+"/api/v1/sys/status", nil)
+		request.AddCookie(w.Result().Cookies()[0])
+		result := httptest.NewRecorder()
+		h.ServeHTTP(result, request)
+		if result.Code != 200 || result.Header().Get("Content-Type") != "application/json" || !strings.Contains(result.Body.String(), `"sealed":true`) {
+			t.Fatal("development API did not return vault JSON", result.Code)
+		}
+		if w := session(browser); w.Code != 204 {
+			t.Fatal("development refresh required a nonce", w.Code)
+		}
+	}
+	if err := c.ui([]string{"--dev-session"}); err == nil {
+		t.Fatal("automatic session accepted without an explicit origin")
+	}
+}

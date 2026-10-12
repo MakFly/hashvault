@@ -66,7 +66,7 @@ const usage = `usage: hashvault <command>
   confirm  ID --release RELEASE [--previous ID]
   publication --target T --app APP
   render   FILE --format json|stack|compose|systemd [--service SVC]
-  ui       [--assets DIR] [--listen 127.0.0.1:8822]
+  ui       [--assets DIR] [--listen 127.0.0.1:8822] [--browser-origin URL] [--dev-session]
   audit    verify
   unseal   --bundle FILE --identity FILE
   seal

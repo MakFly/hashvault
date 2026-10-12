@@ -54,6 +54,56 @@ UI visibility is not an authorization boundary.
 
 ## Source checks
 
+For development, `make dev` starts a persistent local OpenBao vault, its real
+hashvault API, Vite on `http://127.0.0.1:4322`, and the CLI security bridge on
+loopback port 8822. Open `http://127.0.0.1:4322/`. No SSH tunnel or manual login
+is needed for this local vault.
+The explicit `--dev-session` mode bootstraps its process-local browser cookie
+using a same-origin POST with strict Host and Origin checks. Release mode keeps
+its one-use launch nonce. Vite forwards `/api` and `/session`
+to that bridge; API routes cannot fall through to `index.html`.
+
+The development-only `hashvault-local` executable uses Raft storage in
+`.tools/dev-vault` (ignored by Git). Its Unix API socket, credentials, machine
+key and token are private to the current OS user. OpenBao uses dynamically
+selected loopback API/cluster ports. `machine/dev-local` authenticates with a
+software SSH key through the existing SSHSIG login. The launcher renews that
+five-minute machine session every two minutes. This session does not claim MFA.
+Bootstrap revokes its root token once the restricted daemon AppRole is ready.
+
+The local unseal key and AppRole credential are stored in an owner-only local
+file, allowing automatic unseal on restart. This convenience is for development
+only, with no hardware ceremony or idle sealing. Use sample secrets here. The
+production daemon, its FIDO2 bootstrap and SSH authentication are unchanged;
+`hashvault-local` is not included in release artifacts. The automatic local
+vault refuses deployment preparation/publication, so it cannot invoke Docker
+or SSH adapters. Target and access forms still use the real local registry.
+
+`make stop` stops only the owned development processes and removes runtime
+tokens/sockets, retaining secrets and audit history. It also recognizes a launch
+made with the previous UI-only runner. After using **Seal vault** locally,
+`make stop` followed by `make dev` reopens the local vault. Existing
+`HASHVAULT_SOCKET` and `HASHVAULT_TOKEN_FILE` settings do not redirect `make dev`
+to production. For local CLI commands while the stack is running:
+
+```sh
+export HASHVAULT_SOCKET="$PWD/.tools/dev-vault/api.sock"
+export HASHVAULT_TOKEN_FILE="$PWD/.tools/dev-vault/token"
+.tools/hashvault-dev status
+```
+
+An unavailable vault displays an offline state inside the console with secret
+actions disabled. It does not replace the whole application with a router error.
+
+The scoped frontend logger follows Tanship's readable development format:
+time, level, scope, method, path, status, duration and correlation metadata.
+Browser diagnostics also appear in the Vite terminal through its HMR channel.
+Production browser logs are JSON. Terminal `LOG_LEVEL`, `LOG_FORMAT=json` and
+`NO_COLOR` are supported; `VITE_NO_COLOR` disables browser console colors.
+Secret values, request/response bodies, launch nonces, tokens and cookies are
+never logged. Paths omit query strings and fragments. Error details are reduced
+to their type, because raw messages and stacks can contain secret material.
+
 `make ui-check` installs the locked Bun workspace, typechecks and lints it, and
 checks that regenerated API definitions are unchanged. This work adds no
 frontend unit tests or browser test suite. Source checks do not establish visual

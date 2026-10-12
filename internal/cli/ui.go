@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -28,12 +29,20 @@ func (c *client) ui(args []string) error {
 	fs := newFlags("ui", c.io)
 	listen := fs.String("listen", "127.0.0.1:8822", "loopback address only")
 	assets := fs.String("assets", "", "directory containing the released UI")
+	browser := fs.String("browser-origin", "", "numeric loopback origin of a development UI proxy")
+	devSession := fs.Bool("dev-session", false, "automatic same-origin browser session for development")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	host, _, err := net.SplitHostPort(*listen)
 	if err != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() {
 		return errors.New("ui: listen must be a numeric loopback address")
+	}
+	if *browser != "" && !validUIBrowserOrigin(*browser, host) {
+		return errors.New("ui: browser-origin must be an HTTP loopback origin on the same numeric host")
+	}
+	if *devSession && *browser == "" {
+		return errors.New("ui: dev-session requires an explicit browser-origin")
 	}
 	if *assets == "" {
 		exe, err := os.Executable()
@@ -51,9 +60,13 @@ func (c *client) ui(args []string) error {
 	}
 	defer l.Close()
 	origin := "http://" + l.Addr().String()
+	browserOrigin := origin
+	if *browser != "" {
+		browserOrigin = *browser
+	}
 	u, _ := url.Parse(origin)
 	nonce, cookie := randomUIKey(), randomUIKey()
-	h, closeAssets, err := c.uiHandler(*assets, u, nonce, cookie)
+	h, closeAssets, err := c.uiHandlerWithSession(*assets, u, browserOrigin, nonce, cookie, *devSession)
 	if err != nil {
 		return err
 	}
@@ -73,7 +86,11 @@ func (c *client) ui(args []string) error {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-	fmt.Fprintf(c.io.Stderr, "Open %s/#launch=%s\nAuthenticate with hashvault login through the SSH tunnel. Close this process to end the browser session.\n", origin, nonce)
+	if *devSession {
+		fmt.Fprintf(c.io.Stderr, "Open %s/\nDevelopment browser session enabled. Vault access uses the CLI session token.\n", browserOrigin)
+	} else {
+		fmt.Fprintf(c.io.Stderr, "Open %s/#launch=%s\nAuthenticate with hashvault login through the SSH tunnel. Close this process to end the browser session.\n", browserOrigin, nonce)
+	}
 	err = srv.Serve(l)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
@@ -88,6 +105,23 @@ func randomUIKey() string {
 }
 
 func (c *client) uiHandler(assets string, origin *url.URL, nonce, cookie string) (http.Handler, func(), error) {
+	return c.uiHandlerForBrowser(assets, origin, origin.String(), nonce, cookie)
+}
+
+func validUIBrowserOrigin(raw, host string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "http" || u.User != nil || u.Hostname() != host || u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+		return false
+	}
+	port, err := strconv.Atoi(u.Port())
+	return err == nil && port > 0 && port <= 65535 && raw == u.Scheme+"://"+u.Host
+}
+
+func (c *client) uiHandlerForBrowser(assets string, origin *url.URL, browserOrigin, nonce, cookie string) (http.Handler, func(), error) {
+	return c.uiHandlerWithSession(assets, origin, browserOrigin, nonce, cookie, false)
+}
+
+func (c *client) uiHandlerWithSession(assets string, origin *url.URL, browserOrigin, nonce, cookie string, devSession bool) (http.Handler, func(), error) {
 	root, err := os.OpenRoot(assets)
 	if err != nil {
 		return nil, nil, err
@@ -122,23 +156,31 @@ func (c *client) uiHandler(assets string, origin *url.URL, nonce, cookie string)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
-		if r.Host != origin.Host || (r.Header.Get("Origin") != "" && r.Header.Get("Origin") != origin.String()) {
+		if r.Host != origin.Host || (r.Header.Get("Origin") != "" && r.Header.Get("Origin") != browserOrigin) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
 		if r.URL.Path == "/session" {
-			if r.Method != http.MethodPost || r.Header.Get("Origin") != origin.String() {
+			if r.Method != http.MethodPost || r.Header.Get("Origin") != browserOrigin {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			var req struct {
 				Nonce string `json:"nonce"`
 			}
-			if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&req) != nil || subtle.ConstantTimeCompare([]byte(req.Nonce), []byte(nonce)) != 1 || !used.CompareAndSwap(false, true) {
+			if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&req) != nil {
+				http.Error(w, "invalid session request", http.StatusBadRequest)
+				return
+			}
+			// Development's automatic bootstrap is confined to the explicit
+			// loopback browser origin. Release mode keeps its one-use nonce.
+			if devSession && req.Nonce == "" {
+				used.Store(true)
+			} else if subtle.ConstantTimeCompare([]byte(req.Nonce), []byte(nonce)) != 1 || !used.CompareAndSwap(false, true) {
 				http.Error(w, "launch link expired", http.StatusForbidden)
 				return
 			}
-			http.SetCookie(w, &http.Cookie{Name: "hv_ui", Value: cookie, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode}) // #nosec G124 -- loopback HTTP only; strict Host/Origin and a one-use handshake; bearer never reaches the browser
+			http.SetCookie(w, &http.Cookie{Name: "hv_ui", Value: cookie, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode}) // #nosec G124 -- loopback HTTP only; strict Host/Origin, release nonce or explicit dev bootstrap; bearer never reaches the browser
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -148,7 +190,7 @@ func (c *client) uiHandler(assets string, origin *url.URL, nonce, cookie string)
 				http.Error(w, "Open the link printed by hashvault ui.", http.StatusUnauthorized)
 				return
 			}
-			if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Origin") != origin.String() {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Origin") != browserOrigin {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
