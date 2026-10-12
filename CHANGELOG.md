@@ -16,6 +16,13 @@ All notable changes are recorded here. The format follows
 
 ### Added
 
+- `internal/authn`: challenge-response login with SSH keys in the OpenSSH
+  SSHSIG format (`ssh-keygen -Y sign -n hashvault-login`). Challenges name the
+  vault and the principal, live 60 s and are single use. FIDO2 keys
+  (`sk-ssh-ed25519`) must carry the user-presence flag, and the touch time
+  becomes `hv:MfaAgeSeconds`; a software key logs in but never satisfies an
+  MFA condition. Tokens are opaque, stored as SHA-256 only, 15 min for humans
+  and 5 min for machines. Only ed25519 and sk-ed25519 keys, without options.
 - `internal/audit`: tamper-evident audit log. JSON lines chained by SHA-256,
   appended with fsync, verified on open (a broken chain refuses to open);
   Ed25519-signed checkpoints, and verification against anchors kept off the
