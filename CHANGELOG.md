@@ -16,6 +16,26 @@ All notable changes are recorded here. The format follows
 
 ### Added
 
+- `hashvaultd` (`cmd/hashvaultd`, `docs/operations.md`): one-time bootstrap
+  ceremony (initialises OpenBao, mounts, KEK, a minimal OpenBao policy and an
+  AppRole, audit and batch signing keys stored sealed, the first FIDO2
+  administrator, the unseal bundle encrypted with age to hardware keys, root
+  token revoked); starts sealed; unseal accepted from the operators' SSH
+  tunnel only, locked out after five failures; seals itself and OpenBao when
+  idle or on shutdown; refuses to start without locked memory.
+- HTTP API on a unix socket (`internal/server`): secrets, policies,
+  principals, IAM simulator, targets, publication, audit verification. Every
+  request is authorized by IAM with a context from the session, the
+  kernel-reported peer (source channel) and the request, and audited before
+  it runs; the audit log failing stops the operation.
+- Registry (`internal/registry`) of principals, policies, targets and
+  publication records in OpenBao KV; IAM actions `principal:Create`,
+  `principal:Disable`, `principal:Read`.
+- Operator CLI `hashvault` (`cmd/hashvault`): login with `ssh-keygen -Y
+  sign`, secrets, `import dotenv` (refuses keys it cannot store before storing
+  anything, reports `${VAR}` references), policies, principals, simulator,
+  targets, publish, audit, unseal with age identities (YubiKey plugin),
+  seal. Values come from stdin or files, never from arguments.
 - `internal/authn`: challenge-response login with SSH keys in the OpenSSH
   SSHSIG format (`ssh-keygen -Y sign -n hashvault-login`). Challenges name the
   vault and the principal, live 60 s and are single use. FIDO2 keys

@@ -36,7 +36,8 @@ FUZZ_TARGETS := \
 	./internal/iam:FuzzParse \
 	./internal/iam:FuzzMatchGlob \
 	./internal/batch:FuzzOpen \
-	./internal/audit:FuzzVerifyChain
+	./internal/audit:FuzzVerifyChain \
+	./internal/dotenv:FuzzParse
 
 # ─── Help ────────────────────────────────────────────────────────────────────
 help: ## Show the targets, grouped by section
@@ -89,7 +90,12 @@ vuln: ## Run govulncheck against the code and its dependencies
 secrets-scan: ## Scan the working tree for committed secrets (gitleaks)
 	@$(GO) run $(GITLEAKS) dir --no-banner --redact .
 
-lint: fmt-check vet staticcheck gosec ## All static checks
+tidy-check: ## Fail if go.mod or go.sum are not tidy
+	@$(GO) mod tidy && git diff --exit-code go.mod go.sum >/dev/null \
+		|| { printf '$(C_ERR)[make] go.mod/go.sum not tidy: commit the result of go mod tidy$(C_RESET)\n'; exit 1; }
+	@printf '$(C_OK)[make] go.mod tidy$(C_RESET)\n'
+
+lint: fmt-check tidy-check vet staticcheck gosec ## All static checks
 
 # ─── Test ────────────────────────────────────────────────────────────────────
 test: ## Unit, property and integration tests (integration skipped without `make openbao`)
@@ -115,4 +121,4 @@ clean: ## Remove generated reports
 	@rm -f coverage.out
 	@printf '$(C_WARN)[make] reports removed$(C_RESET)\n'
 
-.PHONY: help deps tidy openbao fmt fmt-check vet staticcheck gosec vuln secrets-scan lint test cover fuzz ci clean
+.PHONY: help deps tidy tidy-check openbao fmt fmt-check vet staticcheck gosec vuln secrets-scan lint test cover fuzz ci clean

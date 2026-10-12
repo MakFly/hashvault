@@ -202,3 +202,128 @@ func (c *Client) SealStatus(ctx context.Context) (SealStatus, error) {
 	err := c.do(ctx, http.MethodGet, "sys/seal-status", nil, nil, &s)
 	return s, err
 }
+
+// ---- Lifecycle and auth (bootstrap, unseal, AppRole) --------------------------
+
+// InitResult is the one-time answer of sys/init. It holds the only copies of
+// the unseal key and the root token: the caller encrypts the first and
+// revokes the second.
+type InitResult struct {
+	KeysB64   []string `json:"keys_base64"`
+	RootToken string   `json:"root_token"`
+}
+
+// Init initialises an empty server with shares unseal keys, threshold of
+// them needed.
+func (c *Client) Init(ctx context.Context, shares, threshold int) (InitResult, error) {
+	var out InitResult
+	err := c.do(ctx, http.MethodPut, "sys/init", nil, map[string]int{"secret_shares": shares, "secret_threshold": threshold}, &out)
+	return out, err
+}
+
+// Unseal submits one unseal key share.
+func (c *Client) Unseal(ctx context.Context, keyB64 string) (SealStatus, error) {
+	var out SealStatus
+	err := c.do(ctx, http.MethodPut, "sys/unseal", nil, map[string]string{"key": keyB64}, &out)
+	return out, err
+}
+
+// Seal seals the server (needs sudo on sys/seal).
+func (c *Client) Seal(ctx context.Context) error {
+	return c.do(ctx, http.MethodPut, "sys/seal", nil, nil, nil)
+}
+
+// EnableAuth enables an auth method at path.
+func (c *Client) EnableAuth(ctx context.Context, path, method string) error {
+	return c.do(ctx, http.MethodPost, "sys/auth/"+path, nil, map[string]string{"type": method}, nil)
+}
+
+// PutACLPolicy writes an OpenBao ACL policy (HCL).
+func (c *Client) PutACLPolicy(ctx context.Context, name, hcl string) error {
+	return c.do(ctx, http.MethodPut, "sys/policies/acl/"+name, nil, map[string]string{"policy": hcl}, nil)
+}
+
+// AppRoleWrite creates or updates an AppRole role.
+func (c *Client) AppRoleWrite(ctx context.Context, mount, role string, params map[string]any) error {
+	return c.do(ctx, http.MethodPost, "auth/"+mount+"/role/"+role, nil, params, nil)
+}
+
+// AppRoleRoleID returns the role id of a role.
+func (c *Client) AppRoleRoleID(ctx context.Context, mount, role string) (string, error) {
+	var out response[struct {
+		RoleID string `json:"role_id"`
+	}]
+	err := c.do(ctx, http.MethodGet, "auth/"+mount+"/role/"+role+"/role-id", nil, nil, &out)
+	return out.Data.RoleID, err
+}
+
+// AppRoleSecretID generates a secret id for a role.
+func (c *Client) AppRoleSecretID(ctx context.Context, mount, role string) (string, error) {
+	var out response[struct {
+		SecretID string `json:"secret_id"`
+	}]
+	err := c.do(ctx, http.MethodPost, "auth/"+mount+"/role/"+role+"/secret-id", nil, map[string]any{}, &out)
+	return out.Data.SecretID, err
+}
+
+type authResponse struct {
+	Auth *struct {
+		ClientToken   string `json:"client_token"`
+		LeaseDuration int    `json:"lease_duration"`
+		Renewable     bool   `json:"renewable"`
+	} `json:"auth"`
+}
+
+// AppRoleLogin exchanges a role id and secret id for a token, sets it on
+// the client and returns its lifetime.
+func (c *Client) AppRoleLogin(ctx context.Context, mount, roleID, secretID string) (time.Duration, error) {
+	var out authResponse
+	if err := c.do(ctx, http.MethodPost, "auth/"+mount+"/login", nil, map[string]string{"role_id": roleID, "secret_id": secretID}, &out); err != nil {
+		return 0, err
+	}
+	if out.Auth == nil || out.Auth.ClientToken == "" {
+		return 0, errors.New("openbao: login returned no token")
+	}
+	c.SetToken(out.Auth.ClientToken)
+	return time.Duration(out.Auth.LeaseDuration) * time.Second, nil
+}
+
+// RenewSelf renews the client's token and returns its new lifetime.
+func (c *Client) RenewSelf(ctx context.Context) (time.Duration, error) {
+	var out authResponse
+	if err := c.do(ctx, http.MethodPost, "auth/token/renew-self", nil, map[string]any{}, &out); err != nil {
+		return 0, err
+	}
+	if out.Auth == nil {
+		return 0, errors.New("openbao: renew returned no auth")
+	}
+	return time.Duration(out.Auth.LeaseDuration) * time.Second, nil
+}
+
+// RevokeSelf revokes the client's token (used on the root token at the end
+// of the bootstrap) and forgets it.
+func (c *Client) RevokeSelf(ctx context.Context) error {
+	err := c.do(ctx, http.MethodPost, "auth/token/revoke-self", nil, map[string]any{}, nil)
+	c.SetToken("")
+	return err
+}
+
+// WaitActive waits until the server is unsealed and active (sys/health
+// answers 200): after an unseal, integrated storage elects a leader first.
+func (c *Client) WaitActive(ctx context.Context, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		err := c.do(ctx, http.MethodGet, "sys/health", nil, nil, nil)
+		if err == nil {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("openbao: not active after %s: %w", timeout, err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}
