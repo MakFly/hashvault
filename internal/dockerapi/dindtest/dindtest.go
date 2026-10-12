@@ -71,15 +71,12 @@ func Require(t testing.TB) {
 
 // Start runs a daemon. Stop must be called (tests use t.Cleanup or TestMain).
 func Start(ctx context.Context, opts Options) (*Daemon, error) {
-	out, err := exec.CommandContext(ctx, "docker", "run", "-d", "--rm", "--privileged", // #nosec G204 -- fixed arguments
-		"--label", "hashvault.test=dind",
-		"-e", "DOCKER_TLS_CERTDIR=",
-		"-p", "127.0.0.1::2375",
-		Image, "dockerd", "--host=tcp://0.0.0.0:2375").Output()
+	id, err := Run(ctx, "--privileged", "--label", "hashvault.test=dind", "-e", "DOCKER_TLS_CERTDIR=",
+		"-p", "127.0.0.1::2375", Image, "dockerd", "--host=tcp://0.0.0.0:2375")
 	if err != nil {
-		return nil, fmt.Errorf("dindtest: docker run: %w", err)
+		return nil, fmt.Errorf("dindtest: %w", err)
 	}
-	d := &Daemon{ID: strings.TrimSpace(string(out))}
+	d := &Daemon{ID: id}
 	port, err := exec.CommandContext(ctx, "docker", "port", d.ID, "2375/tcp").Output() // #nosec G204 -- ID from docker run
 	if err != nil {
 		d.Stop()
@@ -120,4 +117,26 @@ func (d *Daemon) Stop() {
 	if d.ID != "" {
 		_ = exec.Command("docker", "rm", "-f", d.ID).Run() // #nosec G204 -- ID from docker run
 	}
+}
+
+// Run starts a detached container on the host daemon and returns its id.
+// Pulls and starts are retried three times: CI runners see transient
+// registry and daemon errors (exit 125) that a second attempt clears. The
+// error carries the daemon's message.
+func Run(ctx context.Context, args ...string) (string, error) {
+	var last error
+	for attempt := range 3 {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 3 * time.Second)
+		}
+		cmd := exec.CommandContext(ctx, "docker", append([]string{"run", "-d", "--rm"}, args...)...) // #nosec G204 -- test harness arguments
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if err == nil {
+			return strings.TrimSpace(string(out)), nil
+		}
+		last = fmt.Errorf("docker run: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return "", last
 }

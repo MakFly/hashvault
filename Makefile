@@ -36,7 +36,8 @@ FUZZ_TARGETS := \
 	./internal/iam:FuzzParse \
 	./internal/iam:FuzzMatchGlob \
 	./internal/batch:FuzzOpen \
-	./internal/audit:FuzzVerifyChain
+	./internal/audit:FuzzVerifyChain \
+	./internal/dotenv:FuzzParse
 
 # ─── Help ────────────────────────────────────────────────────────────────────
 help: ## Show the targets, grouped by section

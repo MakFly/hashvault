@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -37,7 +38,11 @@ type Server struct {
 	Address string
 	Token   string
 	Client  *openbao.Client
+	stop    func()
 }
+
+// Stop kills the server before the end of the test, to test outages.
+func (s *Server) Stop() { s.stop() }
 
 func binary(t testing.TB) string {
 	t.Helper()
@@ -92,11 +97,15 @@ func Start(t testing.TB) *Server {
 		cancel()
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		cancel()
-		_ = cmd.Wait()
-		_ = logs.Close()
-	})
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			_ = cmd.Wait()
+			_ = logs.Close()
+		})
+	}
+	t.Cleanup(stop)
 
 	client, err := openbao.New(openbao.Config{Address: "http://" + addr, Token: token, Timeout: 10 * time.Second})
 	if err != nil {
@@ -124,5 +133,72 @@ func Start(t testing.TB) *Server {
 	must(client.Mount(bg, KVMount, "kv", map[string]string{"version": "2"}))
 	must(client.Mount(bg, TransitMount, "transit", nil))
 	must(client.TransitCreateKey(bg, TransitMount, KEK, "chacha20-poly1305"))
-	return &Server{Address: "http://" + addr, Token: token, Client: client}
+	return &Server{Address: "http://" + addr, Token: token, Client: client, stop: stop}
+}
+
+// StartUninitialized runs a real (non-dev) server with file storage, not
+// initialised and sealed: what a fresh production install looks like. The
+// client has no token.
+func StartUninitialized(t testing.TB) *Server {
+	t.Helper()
+	bin := binary(t)
+	dir := t.TempDir()
+	addr := fmt.Sprintf("127.0.0.1:%d", freePort(t))
+	cluster := fmt.Sprintf("127.0.0.1:%d", freePort(t))
+	if err := os.MkdirAll(filepath.Join(dir, "raft"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := fmt.Sprintf(`storage "raft" {
+  path    = %q
+  node_id = "test"
+}
+listener "tcp" {
+  address         = %q
+  cluster_address = %q
+  tls_disable     = true
+}
+api_addr     = "http://%s"
+cluster_addr = "http://%s"
+`, filepath.Join(dir, "raft"), addr, cluster, addr, cluster)
+	cfgPath := filepath.Join(dir, "bao.hcl")
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, bin, "server", "-config="+cfgPath) // #nosec G204 -- test binary, fixed arguments
+	cmd.Env = []string{"HOME=" + dir, "PATH=/usr/bin:/bin"}
+	logs, err := os.CreateTemp(dir, "bao-*.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd.Stdout, cmd.Stderr = logs, logs
+	if err := cmd.Start(); err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			_ = cmd.Wait()
+			_ = logs.Close()
+		})
+	}
+	t.Cleanup(stop)
+	client, err := openbao.New(openbao.Config{Address: "http://" + addr, Timeout: 10 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if _, err := client.SealStatus(context.Background()); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			out, _ := os.ReadFile(logs.Name())
+			t.Fatalf("OpenBao server did not start:\n%s", out)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return &Server{Address: "http://" + addr, Client: client, stop: stop}
 }

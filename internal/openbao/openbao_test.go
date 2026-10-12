@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MakFly/hashvault/internal/envelope"
 	"github.com/MakFly/hashvault/internal/openbao"
@@ -246,5 +247,103 @@ func TestTransitErrorsPropagate(t *testing.T) {
 	}
 	if _, err := srv.Client.KVMetadata(ctx, baotest.KVMount, "missing"); !errors.Is(err, openbao.ErrNotFound) {
 		t.Fatalf("metadata of a missing entry: %v", err)
+	}
+}
+
+func TestLifecycleErrorPaths(t *testing.T) {
+	down := fakeServer(t, 500, `{"errors":["internal"]}`)
+	if _, err := down.Init(ctx, 1, 1); err == nil {
+		t.Error("init")
+	}
+	if _, err := down.Unseal(ctx, "k"); err == nil {
+		t.Error("unseal")
+	}
+	if err := down.Seal(ctx); err == nil {
+		t.Error("seal")
+	}
+	if err := down.EnableAuth(ctx, "approle", "approle"); err == nil {
+		t.Error("enable auth")
+	}
+	if err := down.PutACLPolicy(ctx, "p", "path \"x\" {}"); err == nil {
+		t.Error("policy")
+	}
+	if err := down.AppRoleWrite(ctx, "approle", "r", nil); err == nil {
+		t.Error("role write")
+	}
+	if _, err := down.AppRoleRoleID(ctx, "approle", "r"); err == nil {
+		t.Error("role id")
+	}
+	if _, err := down.AppRoleSecretID(ctx, "approle", "r"); err == nil {
+		t.Error("secret id")
+	}
+	if _, err := down.AppRoleLogin(ctx, "approle", "a", "b"); err == nil {
+		t.Error("login")
+	}
+	if _, err := down.RenewSelf(ctx); err == nil {
+		t.Error("renew")
+	}
+	if err := down.WaitActive(ctx, 300*time.Millisecond); err == nil {
+		t.Error("wait active on a failing server")
+	}
+	empty := fakeServer(t, 200, `{}`)
+	if _, err := empty.AppRoleLogin(ctx, "approle", "a", "b"); err == nil {
+		t.Error("a login without a token was accepted")
+	}
+	if _, err := empty.RenewSelf(ctx); err == nil {
+		t.Error("a renewal without auth was accepted")
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := down.WaitActive(cancelled, time.Minute); err == nil {
+		t.Error("wait active ignored a cancelled context")
+	}
+	// Last: revoking clears the client's token.
+	if err := down.RevokeSelf(ctx); err == nil {
+		t.Error("revoke")
+	}
+}
+
+func TestLifecycleAgainstARealServer(t *testing.T) {
+	srv := baotest.StartUninitialized(t)
+	c := srv.Client
+	res, err := c.Init(ctx, 1, 1)
+	if err != nil || len(res.KeysB64) != 1 || res.RootToken == "" {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if st, err := c.Unseal(ctx, res.KeysB64[0]); err != nil || st.Sealed {
+		t.Fatalf("%+v %v", st, err)
+	}
+	if err := c.WaitActive(ctx, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	c.SetToken(res.RootToken)
+	if err := c.EnableAuth(ctx, "approle", "approle"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.PutACLPolicy(ctx, "self", `path "auth/token/renew-self" { capabilities = ["update"] }`); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.AppRoleWrite(ctx, "approle", "r", map[string]any{"token_policies": []string{"self"}, "token_period": "1h"}); err != nil {
+		t.Fatal(err)
+	}
+	roleID, err := c.AppRoleRoleID(ctx, "approle", "r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secretID, err := c.AppRoleSecretID(ctx, "approle", "r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.RevokeSelf(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if ttl, err := c.AppRoleLogin(ctx, "approle", roleID, secretID); err != nil || ttl <= 0 {
+		t.Fatalf("login %v %v", ttl, err)
+	}
+	if ttl, err := c.RenewSelf(ctx); err != nil || ttl <= 0 {
+		t.Fatalf("renew %v %v", ttl, err)
+	}
+	if err := c.Seal(ctx); err == nil {
+		t.Fatal("a token without sudo on sys/seal sealed the server")
 	}
 }

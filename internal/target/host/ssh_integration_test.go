@@ -41,12 +41,10 @@ func startSSH(t *testing.T) sshServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := exec.Command("docker", "run", "-d", "--rm", "--label", "hashvault.test=ssh", "-p", "127.0.0.1::22",
-		dindtest.Mirror+"debian:13-slim", "sleep", "900").Output()
+	cid, err := dindtest.Run(ctx, "--label", "hashvault.test=ssh", "-p", "127.0.0.1::22", dindtest.Mirror+"debian:13-slim", "sleep", "900")
 	if err != nil {
-		t.Fatalf("docker run: %v", err)
+		t.Fatal(err)
 	}
-	cid := strings.TrimSpace(string(out))
 	t.Cleanup(func() { _ = exec.Command("docker", "rm", "-f", cid).Run() }) // #nosec G204 -- ID from docker run
 	setup := `set -e
 apt-get update -qq

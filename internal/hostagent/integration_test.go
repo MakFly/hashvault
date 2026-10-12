@@ -1,6 +1,7 @@
 package hostagent
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
@@ -53,13 +54,12 @@ func credsContainer(t *testing.T) string {
 	t.Helper()
 	dindtest.Require(t)
 	credsOnce.Do(func() {
-		out, err := exec.Command("docker", "run", "-d", "--rm", "--label", "hashvault.test=creds",
-			dindtest.Mirror+"debian:13-slim", "sleep", "900").Output()
+		id, err := dindtest.Run(context.Background(), "--label", "hashvault.test=creds", dindtest.Mirror+"debian:13-slim", "sleep", "900")
 		if err != nil {
 			credsErr = err
 			return
 		}
-		credsCID = strings.TrimSpace(string(out))
+		credsCID = id
 		install := exec.Command("docker", "exec", credsCID, "sh", "-c", // #nosec G204 -- fixed arguments
 			"apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends systemd")
 		if out, err := install.CombinedOutput(); err != nil {

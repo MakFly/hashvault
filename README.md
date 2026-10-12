@@ -8,10 +8,11 @@ deployments, Docker Swarm, k3s and Kubernetes, built on OpenBao.**
 [![Go Report Card](https://goreportcard.com/badge/github.com/MakFly/hashvault)](https://goreportcard.com/report/github.com/MakFly/hashvault)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-> **Status: pre-alpha.** The envelope encryption format and the IAM policy
-> engine are implemented and tested. The daemon, the CLI and the target
-> adapters are not written yet. Do not use hashvault for real secrets yet.
-> See the [roadmap](#roadmap).
+> **Status: alpha.** The daemon, the operator CLI, the host agent and the
+> `swarm`, `docker` and `ssh` targets work end to end in tests against real
+> OpenBao, Docker, systemd-creds and OpenSSH. They have not run in production
+> yet: every release first spends a week on a staging host. `k3s` and `k8s`
+> are designed but on standby. See the [roadmap](#roadmap).
 
 hashvault is a small control plane that becomes the single source of truth for
 production secrets, and the only way a human or a machine reads, writes,
@@ -100,18 +101,23 @@ vault blocks publications, not production.
 | `k3s` | k3s cluster | Immutable `Secret` objects named by digest, rollout on change; refused unless `k3s secrets-encrypt` is enabled | yes (push mode) |
 | `k8s` | Any other Kubernetes (vanilla, EKS, GKE, AKS...) | Same, refused without an `EncryptionConfiguration` (KMS v2 preferred) | yes (push mode) |
 
-## Planned usage
-
-Not implemented yet; this is the interface the roadmap targets.
+## Usage
 
 ```sh
-hashvault unseal                                   # touch your YubiKey
-hashvault secret put acme-api/DATABASE_URL --stdin
+ssh -N -L /tmp/hv.sock:/run/hashvault/api.sock ops@vault &   # the API is a unix socket
+export HASHVAULT_SOCKET=/tmp/hv.sock
+hashvault unseal --bundle unseal-bundle.age --identity yubikey.txt   # PIN, touch
+hashvault login --principal human/alice --key ~/.ssh/id_ed25519_sk  # touch
+hashvault secret put prod/acme-api/DATABASE_URL < db-url.txt
+hashvault import dotenv .env --env prod --app legacy --dry-run
 hashvault iam simulate --principal machine/deployer \
   --action secret:Publish --resource hv:prod:secret/acme-api/DATABASE_URL
-hashvault publish acme-api --target swarm-main
+hashvault publish --target swarm-main --manifest hashvault.json
 hashvault audit verify
 ```
+
+Install, bootstrap ceremony and unseal: [`docs/operations.md`](docs/operations.md).
+Host agent for `docker` and `ssh` targets: [`docs/host-agent.md`](docs/host-agent.md).
 
 ## Security model
 
@@ -144,9 +150,9 @@ synchronisation. Use OpenBao directly for those.
 
 | Phase | Content | Status |
 |---|---|---|
-| P0 | Envelope format, IAM engine, specs, CI | in progress |
-| P1 | Daemon and CLI, Swarm through a deployment tool backend, staging on a Proxmox LXC | planned |
-| P2 | Plain Docker, classic SSH deployments, Swarm without a deployment tool | planned |
+| P0 | Envelope format, IAM engine, specs, CI | done |
+| P1 | Daemon, CLI, Swarm target, staging on a Proxmox LXC | code done, staging next |
+| P2 | Plain Docker and classic SSH deployments (host agent) | code done, staging next |
 | P3 | Web UI through the tunnel, OIDC for humans, docs site | planned |
 | P4 | k3s and k8s, CSI provider, CI OIDC | planned |
 
