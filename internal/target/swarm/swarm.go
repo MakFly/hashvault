@@ -42,6 +42,7 @@ const (
 	LabelKey      = "hv.key"
 	LabelVersion  = "hv.version"
 	LabelResource = "hv.resource"
+	LabelPrepared = "hv.prepared"
 )
 
 // Config describes one swarm target.
@@ -449,6 +450,7 @@ func (a *Adapter) Inventory(ctx context.Context) ([]target.Published, error) {
 	for _, s := range list {
 		v, _ := strconv.ParseUint(s.Spec.Labels[LabelVersion], 10, 64)
 		out = append(out, target.Published{
+			Retained:   s.Spec.Labels[LabelPrepared] == "true",
 			App:        s.Spec.Labels[LabelApp],
 			Key:        s.Spec.Labels[LabelKey],
 			Version:    v,
@@ -490,7 +492,7 @@ func (a *Adapter) GC(ctx context.Context, retention time.Duration, now time.Time
 	}
 	var removed []string
 	for _, p := range inv {
-		if p.InUse || now.Sub(p.CreatedAt) < retention {
+		if p.InUse || p.Retained || now.Sub(p.CreatedAt) < retention {
 			continue
 		}
 		if err := a.docker.SecretRemove(ctx, p.ObjectID); err != nil {

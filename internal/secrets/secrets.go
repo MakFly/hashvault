@@ -206,8 +206,20 @@ func (s *Store) record(ctx context.Context, ref Ref, version uint64) (envelope.R
 	return envelope.ParseRecord(raw)
 }
 
-// Destroy permanently removes the data of a secret version, which holds the
-// only copy of its wrapped data key. The version number stays reserved.
+// VersionLive reads metadata without decrypting a secret value.
+func (s *Store) VersionLive(ctx context.Context, ref Ref, version uint64) (bool, error) {
+	if err := ref.Validate(); err != nil {
+		return false, err
+	}
+	md, err := s.kv.KVMetadata(ctx, s.mount, ref.versionPath(version))
+	if errors.Is(err, openbao.ErrNotFound) {
+		return false, ErrNotFound
+	}
+	return len(md.Live) > 0, err
+}
+
+// Destroy permanently removes the data and its only wrapped key while keeping
+// the version number reserved.
 func (s *Store) Destroy(ctx context.Context, ref Ref, version uint64) error {
 	if err := ref.Validate(); err != nil {
 		return err

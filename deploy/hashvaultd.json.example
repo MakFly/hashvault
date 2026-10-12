@@ -1,0 +1,10 @@
+{
+  "vault_id": "vault-1",
+  "listen": "/run/hashvault/api.sock",
+  "openbao": "unix:///run/openbao/api.sock",
+  "kek": "hv-kek-prod",
+  "audit_path": "/var/lib/hashvault/audit.jsonl",
+  "tunnel_uids": [],
+  "ssh_dir": "/etc/hashvault/ssh",
+  "idle_seal_minutes": 60
+}

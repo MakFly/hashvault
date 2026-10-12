@@ -1,0 +1,28 @@
+{
+  "Version": "hv-1",
+  "Statement": [
+    {
+      "Sid": "PrepareAndConfirmApplication",
+      "Effect": "Allow",
+      "Action": "secret:Publish",
+      "Resource": [
+        "hv:prod:secret/acme-api/*",
+        "hv:prod:target/swarm-main"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "hv:PrincipalType": "machine",
+          "hv:SourceChannel": "socket",
+          "hv:TargetKind": "swarm",
+          "hv:TargetName": "swarm-main"
+        }
+      }
+    },
+    {
+      "Sid": "NeverReadOrManageIdentities",
+      "Effect": "Deny",
+      "Action": ["secret:Read", "secret:Write", "secret:Delete", "policy:*", "principal:*", "sys:Unseal"],
+      "Resource": "*"
+    }
+  ]
+}

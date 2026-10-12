@@ -1,0 +1,31 @@
+[Unit]
+Description=OpenBao secret storage for Hashvault
+After=network.target
+
+[Service]
+Type=simple
+User=openbao
+Group=hashvault
+ExecStart=/usr/local/bin/bao server -config=/etc/openbao/openbao.hcl
+RuntimeDirectory=openbao
+RuntimeDirectoryMode=0750
+StateDirectory=openbao
+StateDirectoryMode=0700
+UMask=0007
+LimitMEMLOCK=infinity
+LimitCORE=0
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/openbao /var/lib/openbao
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

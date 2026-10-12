@@ -70,15 +70,18 @@ type Consumers struct {
 
 // Batch is the payload.
 type Batch struct {
-	Version   string      `json:"version"`
-	ID        string      `json:"id"`
-	Agent     string      `json:"agent"`
-	Target    string      `json:"target"`
-	Kind      target.Kind `json:"kind"`
-	App       string      `json:"app"`
-	Env       string      `json:"env"`
-	IssuedAt  time.Time   `json:"issued_at"`
-	ExpiresAt time.Time   `json:"expires_at"`
+	// Preparation is an immutable generation id. Nonempty batches install
+	// resources without invoking consumers or changing the active generation.
+	Preparation string      `json:"preparation,omitempty"`
+	Version     string      `json:"version"`
+	ID          string      `json:"id"`
+	Agent       string      `json:"agent"`
+	Target      string      `json:"target"`
+	Kind        target.Kind `json:"kind"`
+	App         string      `json:"app"`
+	Env         string      `json:"env"`
+	IssuedAt    time.Time   `json:"issued_at"`
+	ExpiresAt   time.Time   `json:"expires_at"`
 	// Rollback allows versions lower than the ones the agent last applied.
 	Rollback  bool      `json:"rollback,omitempty"`
 	Items     []Item    `json:"items"`
@@ -93,6 +96,11 @@ func (b *Batch) Clear() {
 }
 
 func (b Batch) validate(agent string, now time.Time) error {
+	if b.Preparation != "" {
+		if !target.ValidPreparationID(b.Preparation) || len(b.Consumers.Docker) != 0 || len(b.Consumers.Reload) != 0 {
+			return fmt.Errorf("%w: a preparation needs a valid generation and no consumers", ErrInvalid)
+		}
+	}
 	switch {
 	case b.Version != Version:
 		return fmt.Errorf("%w: version %q", ErrInvalid, b.Version)

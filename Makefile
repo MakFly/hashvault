@@ -51,6 +51,9 @@ deps: ## Download and verify module dependencies
 	@$(GO) mod download && $(GO) mod verify
 	@printf '$(C_OK)[make] modules verified$(C_RESET)\n'
 
+ui-deps: ## Install the UI workspace from the Bun lockfile
+	@bun install --frozen-lockfile
+
 tidy: ## Tidy go.mod and go.sum (fails in CI if they change)
 	@$(GO) mod tidy
 
@@ -97,6 +100,13 @@ tidy-check: ## Fail if go.mod or go.sum are not tidy
 
 lint: fmt-check tidy-check vet staticcheck gosec ## All static checks
 
+ui-check: ui-deps ## Typecheck and lint the console, and verify generated API types
+	@bun run typecheck
+	@bun run lint:ui
+	@before=$$(cksum ui/src/api/schema.d.ts); bun run api:types; after=$$(cksum ui/src/api/schema.d.ts); \
+		if [ "$$before" != "$$after" ]; then printf '$(C_ERR)[make] regenerate and commit API types$(C_RESET)\n'; exit 1; fi
+	@printf '$(C_OK)[make] UI types and lint verified$(C_RESET)\n'
+
 # ─── Test ────────────────────────────────────────────────────────────────────
 test: ## Unit, property and integration tests (integration skipped without `make openbao`)
 	@$(GO) test -race -shuffle=on -count=1 ./...
@@ -114,11 +124,11 @@ fuzz: ## Run every fuzz target for FUZZTIME each (default 30s)
 	@printf '$(C_OK)[make] fuzzing done$(C_RESET)\n'
 
 # ─── CI ──────────────────────────────────────────────────────────────────────
-ci: deps lint cover vuln ## Everything the CI workflow runs, locally
+ci: deps lint cover vuln ui-check ## Backend and console checks, locally
 	@printf '$(C_OK)[make] ci passed$(C_RESET)\n'
 
 clean: ## Remove generated reports
 	@rm -f coverage.out
 	@printf '$(C_WARN)[make] reports removed$(C_RESET)\n'
 
-.PHONY: help deps tidy tidy-check openbao fmt fmt-check vet staticcheck gosec vuln secrets-scan lint test cover fuzz ci clean
+.PHONY: help deps ui-deps ui-check tidy tidy-check openbao fmt fmt-check vet staticcheck gosec vuln secrets-scan lint test cover fuzz ci clean

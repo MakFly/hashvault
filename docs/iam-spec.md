@@ -18,6 +18,20 @@ that a typo is a parse error rather than a silent gap.
 | Workload | `workload/k8s/lab/acme/api` | Projected Kubernetes ServiceAccount token, TokenReview |
 | Break-glass | `breakglass/1` | Offline key, disabled by default, every use alerts |
 
+The current API authenticates humans and machines through SSHSIG challenge
+responses. Shuttle verifies the operator's signed deployment plan in its own
+root helper, then uses an enrolled machine SSH key on the vault's Unix socket.
+Hashvault itself does not yet consume signed deployment plans or approval
+proofs; `hv:Approved` remains false. The usable scoped machine policy is
+[`examples/policies/shuttle-helper.json`](../examples/policies/shuttle-helper.json).
+Other authentication types in the table describe the target design.
+
+Deployment `prepare`, preparation reads and `confirm` require `secret:Publish`
+on both the target and every declared secret. They never grant `secret:Read`.
+Preparation listing also requires `secret:List` on the selected application.
+Confirmations are deployer attestations with an expected-predecessor CAS, not
+independent runtime health checks by the vault.
+
 Tokens are opaque and short-lived: 15 minutes for humans, 5 minutes for
 machines. There are no long-lived API keys for humans.
 

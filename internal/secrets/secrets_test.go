@@ -117,6 +117,15 @@ func TestDestroyIsPermanentAndKeepsTheNumberReserved(t *testing.T) {
 	if err := s.Destroy(ctx, db, 2); err != nil {
 		t.Fatal(err)
 	}
+	if live, err := s.VersionLive(ctx, db, 1); err != nil || !live {
+		t.Fatal("live version missing from history", live, err)
+	}
+	if live, err := s.VersionLive(ctx, db, 2); err != nil || live {
+		t.Fatal("destroyed version marked live", live, err)
+	}
+	if _, err := s.VersionLive(ctx, db, 7); !errors.Is(err, secrets.ErrNotFound) {
+		t.Fatal(err)
+	}
 	if _, _, err := s.Get(ctx, db, 2); !errors.Is(err, secrets.ErrDestroyed) {
 		t.Fatalf("destroyed version: got %v", err)
 	}
@@ -238,6 +247,9 @@ func TestStoreFailsClosedWhenOpenBaoIsUnreachable(t *testing.T) {
 	if _, err := s.Keys(ctx, "prod", "acme-api"); err == nil {
 		t.Fatal("keys succeeded without OpenBao")
 	}
+	if _, err := s.VersionLive(ctx, db, 1); err == nil {
+		t.Fatal("version metadata succeeded without OpenBao")
+	}
 }
 
 func TestEveryMethodRefusesAnInvalidRef(t *testing.T) {
@@ -254,6 +266,9 @@ func TestEveryMethodRefusesAnInvalidRef(t *testing.T) {
 	}
 	if _, err := s.Rewrap(ctx, bad); !errors.Is(err, secrets.ErrInvalidRef) {
 		t.Fatalf("rewrap: %v", err)
+	}
+	if _, err := s.VersionLive(ctx, bad, 1); !errors.Is(err, secrets.ErrInvalidRef) {
+		t.Fatal(err)
 	}
 }
 

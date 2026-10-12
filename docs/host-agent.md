@@ -149,6 +149,14 @@ previous versions with the rollback flag, signed in the batch.
 
 ## Rollback
 
+Deployment-managed preparations use immutable generation directories instead
+of overwriting the active publication. Their signed batch includes a
+`preparation` id and no consumers; the agent refuses a preparation that asks
+for a restart. `materialize` reconstructs retained generations at boot, and
+the deployment tool selects the previous generation during rollback. See
+[`deployments.md`](deployments.md). The legacy publication rollback described
+below continues to operate independently.
+
 Each key keeps its previous sealed value as `<file>.prev`. If materialising or
 restarting fails, the agent restores the previous files and metadata,
 materialises and restarts again, and answers `rolled_back`. A batch that was

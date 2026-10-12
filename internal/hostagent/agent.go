@@ -90,12 +90,13 @@ const (
 
 // Receipt is what the agent answers. It names versions, never values.
 type Receipt struct {
-	BatchID string            `json:"batch_id"`
-	App     string            `json:"app"`
-	Status  string            `json:"status"`
-	Items   map[string]uint64 `json:"items"`
-	Error   string            `json:"error,omitempty"`
-	At      time.Time         `json:"at"`
+	Resources *target.PreparedResources `json:"resources,omitempty"`
+	BatchID   string                    `json:"batch_id"`
+	App       string                    `json:"app"`
+	Status    string                    `json:"status"`
+	Items     map[string]uint64         `json:"items"`
+	Error     string                    `json:"error,omitempty"`
+	At        time.Time                 `json:"at"`
 }
 
 // meta is the non-secret description of an app on this host.
@@ -161,6 +162,9 @@ func (a *Agent) Receive(ctx context.Context, data []byte, open func([]byte) (bat
 // Apply writes, materialises and restarts. On failure it restores the
 // previous state and reports RolledBack.
 func (a *Agent) Apply(ctx context.Context, b batch.Batch) Receipt {
+	if b.Preparation != "" {
+		return a.prepare(ctx, b)
+	}
 	rcpt := Receipt{BatchID: b.ID, App: b.App, Items: map[string]uint64{}, At: a.cfg.Now().UTC()}
 	for _, it := range b.Items {
 		rcpt.Items[it.Key] = it.Version

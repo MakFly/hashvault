@@ -329,11 +329,13 @@ func (r *Registry) ListTargets(ctx context.Context) ([]string, error) {
 // Publication is the last state hashvault published for an app on a target.
 // For host targets it is the inventory, and the source of a rollback.
 type Publication struct {
-	Target   string            `json:"target"`
-	App      string            `json:"app"`
-	Versions map[string]uint64 `json:"versions"`
-	By       string            `json:"by"`
-	At       time.Time         `json:"at"`
+	PreparationID string            `json:"preparation_id,omitempty"`
+	Release       string            `json:"release,omitempty"`
+	Target        string            `json:"target"`
+	App           string            `json:"app"`
+	Versions      map[string]uint64 `json:"versions"`
+	By            string            `json:"by"`
+	At            time.Time         `json:"at"`
 }
 
 // RecordPublication stores the outcome of a successful publication. Its KV

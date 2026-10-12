@@ -1,0 +1,13 @@
+{
+  "name": "hashvault-workspace",
+  "private": true,
+  "workspaces": ["ui"],
+  "scripts": {
+    "typecheck": "bun run --cwd ui typecheck",
+    "lint:ui": "bun run --cwd ui lint",
+    "api:types": "bunx openapi-typescript api/openapi.json -o ui/src/api/schema.d.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.10.1"
+  }
+}

@@ -36,6 +36,8 @@ var Version = "dev"
 
 // IO bundles the process plumbing, so tests can drive the CLI.
 type IO struct {
+	// Context ends long-running CLI commands; nil uses process signals.
+	Context        context.Context
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 	Getenv         func(string) string
@@ -59,6 +61,12 @@ const usage = `usage: hashvault <command>
   iam      simulate --principal P --action A --resource R [--context k=v]
   target   put FILE | list
   publish  --target T --manifest FILE [--version KEY=N] [--rollback] [--dry-run]
+  prepare  --target T --manifest FILE [--version KEY=N] [--output FILE]
+  preparation get ID | list --target T --app APP
+  confirm  ID --release RELEASE [--previous ID]
+  publication --target T --app APP
+  render   FILE --format json|stack|compose|systemd [--service SVC]
+  ui       [--assets DIR] [--listen 127.0.0.1:8822]
   audit    verify
   unseal   --bundle FILE --identity FILE
   seal
@@ -100,6 +108,18 @@ func Main(args []string, o IO) int {
 		err = c.target(args[1:])
 	case "publish":
 		err = c.publish(args[1:])
+	case "prepare":
+		err = c.prepare(args[1:])
+	case "preparation":
+		err = c.preparation(args[1:])
+	case "confirm":
+		err = c.confirm(args[1:])
+	case "publication":
+		err = c.publication(args[1:])
+	case "ui":
+		err = c.ui(args[1:])
+	case "render":
+		err = c.render(args[1:])
 	case "audit":
 		err = c.audit(args[1:])
 	case "unseal":

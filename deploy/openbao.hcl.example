@@ -1,0 +1,11 @@
+storage "raft" {
+  path = "/var/lib/openbao/raft"
+  node_id = "vault-1"
+}
+listener "unix" {
+  address = "/run/openbao/api.sock"
+  socket_mode = "0660"
+  socket_group = "hashvault"
+}
+api_addr = "http://127.0.0.1:8200"
+cluster_addr = "http://127.0.0.1:8201"

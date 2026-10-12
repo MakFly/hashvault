@@ -1,0 +1,35 @@
+name: Package release artifacts
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Artifact version
+        required: true
+        default: snapshot
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux]
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Package CLI, console and Linux daemon tools
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_OS: ${{ matrix.os }}
+          RELEASE_ARCH: ${{ matrix.arch }}
+        run: bash scripts/package-release.sh "$RELEASE_VERSION" "$RELEASE_OS" "$RELEASE_ARCH"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hashvault-${{ inputs.version }}-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*

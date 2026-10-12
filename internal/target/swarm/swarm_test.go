@@ -281,6 +281,9 @@ func TestAnObjectWithForeignCoordinatesIsRefused(t *testing.T) {
 	if _, err := a.Apply(ctx, d); !errors.Is(err, target.ErrContract) {
 		t.Fatalf("apply: want ErrContract, got %v", err)
 	}
+	if _, err := a.Prepare(ctx, d, target.NewPreparationID()); !errors.Is(err, target.ErrContract) {
+		t.Fatalf("prepare trusted conflicting coordinates: %v", err)
+	}
 }
 
 func TestPlanRefusesWhatSwarmCannotHold(t *testing.T) {

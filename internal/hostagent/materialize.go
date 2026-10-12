@@ -166,6 +166,9 @@ func (a *Agent) MaterializeAll(ctx context.Context) error {
 		return err
 	}
 	var errs []error
+	if err := a.MaterializeGenerations(ctx); err != nil {
+		errs = append(errs, err)
+	}
 	for _, app := range apps {
 		if err := a.Materialize(ctx, app); err != nil {
 			errs = append(errs, err)

@@ -13,6 +13,8 @@ All notable changes are recorded here. The format follows
 
 ### Fixed
 
+- Integration fixtures wait for an actual KV v2 write/read before tests start,
+  avoiding transient failures while OpenBao finishes enabling the mount.
 - `internal/iam`: the glob matcher consumed a pattern `*` as a literal when
   the input held a `*` at the same position, so `a*` did not match `a*b`. A
   Deny statement could fail to apply to a context value containing `*`. Found
@@ -20,6 +22,17 @@ All notable changes are recorded here. The format follows
   no longer contain `*` or `?`.
 
 ### Added
+
+- Deployment preparations for Swarm, Docker and SSH: pinned, immutable
+  descriptors, per-generation encrypted host storage and tmpfs copies, boot
+  reconstruction without the vault, runtime-native reference rendering, and
+  release confirmation with an expected predecessor. Prepared Swarm secrets
+  are retained for rollback. Legacy publish behavior remains available.
+- Local web console in a Bun workspace with React, shadcn, Vite and React
+  Router, sharing the API's IAM and audit path. A loopback CLI bridge keeps
+  the vault bearer outside the browser and enforces one-use launch, Host and
+  Origin checks. Added OpenAPI-generated client types, installation scripts,
+  systemd units and a manually triggered Linux artifact packaging workflow.
 
 - `hashvaultd` (`cmd/hashvaultd`, `docs/operations.md`): one-time bootstrap
   ceremony (initialises OpenBao, mounts, KEK, a minimal OpenBao policy and an

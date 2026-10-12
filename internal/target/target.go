@@ -83,6 +83,7 @@ func (d Desired) Validate() error {
 
 // Published is one secret version as it exists on a target.
 type Published struct {
+	Retained   bool
 	App        string
 	Key        string
 	Version    uint64

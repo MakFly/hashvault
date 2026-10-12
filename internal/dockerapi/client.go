@@ -182,12 +182,27 @@ func (c *Client) SwarmInit(ctx context.Context) error {
 
 // Secret is a swarm secret, without its value (the API never returns it).
 type Secret struct {
-	ID        string    `json:"ID"`
+	ID      string `json:"ID"`
+	Version struct {
+		Index uint64 `json:"Index"`
+	} `json:"Version"`
 	CreatedAt time.Time `json:"CreatedAt"`
 	Spec      struct {
 		Name   string            `json:"Name"`
 		Labels map[string]string `json:"Labels"`
 	} `json:"Spec"`
+}
+
+func (c *Client) SecretInspect(ctx context.Context, id string) (Secret, error) {
+	var secret Secret
+	err := c.do(ctx, http.MethodGet, "/secrets/"+url.PathEscape(id), nil, nil, &secret)
+	return secret, err
+}
+
+// SecretUpdateLabels changes metadata only. Docker never accepts changing a
+// secret value through this endpoint.
+func (c *Client) SecretUpdateLabels(ctx context.Context, secret Secret, labels map[string]string) error {
+	return c.do(ctx, http.MethodPost, "/secrets/"+url.PathEscape(secret.ID)+"/update", url.Values{"version": {strconv.FormatUint(secret.Version.Index, 10)}}, map[string]any{"Name": secret.Spec.Name, "Labels": labels}, nil)
 }
 
 // SecretCreate creates a swarm secret and returns its ID.

@@ -1,0 +1,33 @@
+[Unit]
+Description=Hashvault secrets control plane
+Requires=openbao.service
+After=openbao.service
+
+[Service]
+Type=simple
+User=hashvault
+Group=hashvault
+SupplementaryGroups=docker
+ExecStart=/usr/local/bin/hashvaultd serve --config /etc/hashvault/hashvaultd.json
+RuntimeDirectory=hashvault
+RuntimeDirectoryMode=0750
+StateDirectory=hashvault
+StateDirectoryMode=0700
+UMask=0007
+LimitMEMLOCK=infinity
+LimitCORE=0
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/hashvault /var/lib/hashvault
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

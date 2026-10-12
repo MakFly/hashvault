@@ -2,7 +2,45 @@
 
 How to install hashvault on one host, run the bootstrap ceremony, unseal,
 and publish. Every command here is real; the Ansible role that automates the
-install is the next step of the roadmap.
+install is the next step of the roadmap. Linux release artifacts now include
+an installer, static console assets and the systemd units used below.
+
+## Install a Linux artifact
+
+Download the package and checksum from the repository's packaging workflow,
+verify the archive, then extract and install it. The installer supports a
+custom absolute prefix and never starts services or overwrites vault data.
+
+```sh
+sha256sum -c hashvault-<version>-linux-amd64.tar.gz.sha256
+tar -xzf hashvault-<version>-linux-amd64.tar.gz
+sh hashvault/scripts/install.sh --prefix /usr/local --services
+```
+
+OpenBao is an external dependency, not vendored into the monorepo. Install a
+verified OpenBao binary at `/usr/local/bin/bao` before using its service unit.
+The integration suite pins and verifies the version recorded in the Makefile.
+
+Create dedicated `hashvault` and `openbao` system accounts, with group
+`hashvault` available to both units. Copy the provided configuration examples
+to `/etc/hashvault/hashvaultd.json` and `/etc/openbao/openbao.hcl`; assign
+ownership to their service accounts and restrict their permissions. Never
+replace an existing OpenBao storage directory during an upgrade.
+
+Set `tunnel_uids` from the actual SSH operator account's UID. That account also
+needs permission to traverse `/run/hashvault` and connect to its socket, through
+the `hashvault` group or a narrowly scoped ACL. Do not infer the operator from
+a seed or Git metadata. Complete the bootstrap below before starting hashvaultd.
+
+The daemon unit permits a local Swarm socket through the Docker group and
+restricted remote SSH agents. Its `NoNewPrivileges` and read-only filesystem
+hardening intentionally prevent the local sudo transport; use a restricted SSH
+agent on localhost when preparing Docker/SSH resources on the same manager.
+
+Install units and configuration on the actual manager, reload systemd's unit
+definitions, start OpenBao for the bootstrap ceremony, then enable the daemon
+after its generated role id is present. Configuration and runtime service
+installation are operator actions; the package installer does not perform them.
 
 ```text
 +------------------------------+       +------------------------------+
@@ -137,4 +175,9 @@ one is refused.
 - `hashvault status` answers through the tunnel; from another account the
   unseal is refused.
 - `hashvault audit verify` reports `ok: true`.
-- `systemd-analyze security hashvaultd` stays under 2.0 with the hardened unit.
+- Validate the installed units and review `systemd-analyze security hashvaultd`.
+  Its Docker socket access is deliberately privileged; a numeric hardening
+  score is not a proof of isolation from the manager's workloads.
+- Prepare a first deployment and verify both its references and consumers,
+  following [`deployments.md`](deployments.md).
+- Open the local console following [`console.md`](console.md).

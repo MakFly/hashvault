@@ -65,8 +65,8 @@ approvals. hashvault adds exactly that layer on top of
 
 ```text
 +--------------------+   +--------------------+   +--------------------+
-| hashvault CLI      |   | deployment helper  |   | web UI (later)     |
-| (SSH tunnel)       |   | (signed plans)     |   | (SSH tunnel)       |
+| hashvault CLI      |   | deployment helper  |   | web UI             |
+| (SSH tunnel)       |   | (signed plans)     |   | (CLI bridge)       |
 +---------+----------+   +---------+----------+   +---------+----------+
           |                        |                        |
           +------------------------+------------------------+
@@ -118,6 +118,8 @@ hashvault audit verify
 
 Install, bootstrap ceremony and unseal: [`docs/operations.md`](docs/operations.md).
 Host agent for `docker` and `ssh` targets: [`docs/host-agent.md`](docs/host-agent.md).
+Deployment preparations and Shuttle integration: [`docs/deployments.md`](docs/deployments.md).
+Local React console: [`docs/console.md`](docs/console.md).
 
 ## Security model
 
@@ -153,7 +155,8 @@ synchronisation. Use OpenBao directly for those.
 | P0 | Envelope format, IAM engine, specs, CI | done |
 | P1 | Daemon, CLI, Swarm target, staging on a Proxmox LXC | code done, staging next |
 | P2 | Plain Docker and classic SSH deployments (host agent) | code done, staging next |
-| P3 | Web UI through the tunnel, OIDC for humans, docs site | planned |
+| P3 | Local React console through the tunnel | code done, staging next |
+| P3b | OIDC for humans, public authenticated web gateway, docs site | planned |
 | P4 | k3s and k8s, CSI provider, CI OIDC | planned |
 
 Every release runs for at least 7 days on a staging LXC, with recovery drills,

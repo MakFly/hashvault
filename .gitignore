@@ -9,3 +9,5 @@ coverage.out
 *.age
 *.enc
 /.tools/
+node_modules/
+/ui/dist/
